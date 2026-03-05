@@ -1,0 +1,16 @@
+#NLP
+spacy==3.7.4 #токенизация, NER, dependency parsing
+transformers==4.41.0 #модели для генерации вопросов
+torch==2.3.0 #whisper
+sentencepiece==0.2.0
+
+#HTPP Client
+aiohttp
+
+#Utils
+python-dotenv #загрузка .env
+aiofiles #асинхронная работа с файлами
+uuid #генерация токенов invite
+Pillow
+
+fastapi

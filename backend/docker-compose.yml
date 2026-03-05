@@ -1,0 +1,109 @@
+
+services:
+
+  # ── PostgreSQL ──────────────────────────────────────────────
+  db:
+    image: postgres:16-alpine
+    container_name: videoquiz_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-videoquiz}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-secret}
+      POSTGRES_DB: ${POSTGRES_DB:-videoquiz_db}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-videoquiz}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # ── Redis ───────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: videoquiz_redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # ── FastAPI (API) ───────────────────────────────────────────
+  api:
+    build:
+      context: .     # Путь к папке с бэкендом
+      dockerfile: Dockerfile
+      target: runtime
+    container_name: videoquiz_api
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-videoquiz}:${POSTGRES_PASSWORD:-secret}@db:5432/${POSTGRES_DB:-videoquiz_db}
+      REDIS_URL: redis://redis:6379/0
+    volumes:
+      # Пробрасываем содержимое папки backend для hot-reload
+      - ./backend:/backend
+      - media_data:/backend/media
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    # Запуск без префикса app.
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+
+  # ── Celery Worker ───────────────────────────────────────────
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runtime
+    container_name: videoquiz_worker
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-videoquiz}:${POSTGRES_PASSWORD:-secret}@db:5432/${POSTGRES_DB:-videoquiz_db}
+      REDIS_URL: redis://redis:6379/0
+    volumes:
+      - ./backend:/backend
+      - media_data:/backend/media
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    # Если tasks.py лежит в корне backend, указываем просто tasks
+    command: celery -A tasks.celery_app worker --loglevel=info --concurrency=2
+
+  # ── Flower ──────────────────────────────────────────────────
+  flower:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runtime
+    container_name: videoquiz_flower
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      CELERY_BROKER_URL: redis://redis:6379/0
+    ports:
+      - "5555:5555"
+    depends_on:
+      - redis
+      - worker
+    command: celery -A tasks.celery_app flower --port=5555
+
+volumes:
+  postgres_data:
+  media_data:
+  whisper_models:

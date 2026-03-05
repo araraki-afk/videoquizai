@@ -1,0 +1,41 @@
+#builder
+FROM python:3.11-slim AS builder
+
+WORKDIR /install
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    gcc \
+    libpq-dev \
+    ffmpeg \
+    git \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY requirements.txt .
+
+RUN pip install --upgrade pip && \
+    pip install --no-cache-dir -r requirements.txt
+
+#runtime
+
+FROM python:3.11-slim AS runtime
+
+WORKDIR /backend
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libpq5 \
+    ffmpeg \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY --from=builder /install/packages /usr/local
+
+COPY . .
+
+RUN mkdir -p /backend/media/uploads /backend/media/audio
+
+RUN useradd -m -u 1000 appuser && chown -R appuser:appuser /backend
+USER appuser
+
+EXPOSE 8000
+
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
