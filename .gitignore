@@ -8,3 +8,5 @@
 backend/.venv/
 backend/__pycache__/
 backend./env
+backend/api/__pycache__/__init__.cpython-311.pyc
+*/__pycache__/

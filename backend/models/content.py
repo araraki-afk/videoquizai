@@ -32,4 +32,4 @@ class Content(Base):
     user = relationship("User", back_populates = "contents")
     transcript = relationship("Transcript", back_populates="content", uselist=False)
     summary = relationship("Summary", back_populates="content", uselist=False)
-    quizzes = relationship("Quiz", back_populates="content", back_populates="content")
+    quizzes = relationship("Quiz", back_populates="content")

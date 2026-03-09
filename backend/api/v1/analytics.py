@@ -39,7 +39,7 @@ def my_analytics(db: Session = Depends(get_db), current_user: User = Depends(get
                     if question.topic_tag:
                         weak_topic_counter[question.topic_tag] +=1
 
-    avg_score = round(sum(a.score for a in attempts if a.score)/len(attempts),1)
+    avg_score = round(sum(a.score for a in attempts if a.score is not None)/len(attempts),1)
 
     return {
         "total_attempts": len(attempts),
