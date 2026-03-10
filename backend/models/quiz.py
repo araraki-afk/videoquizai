@@ -15,18 +15,19 @@ class Quiz(Base):
     questions = relationship("Question", back_populates="quiz", cascade="all, delete")
     attempts = relationship("QuizAttempt", back_populates="quiz")
 
+
 class Question(Base):
     __tablename__ = "questions"
 
     id = Column(Integer, primary_key=True)
     quiz_id = Column(Integer, ForeignKey("quizzes.id"), nullable=False)
     text = Column(Text, nullable=False)
-    question_type = Column(String, nullable=False) #виды вопросов мультивыбор, открытый, тру/фолс
-    options = Column(Json, nullable=False) #варианты
-    correct_answer = Column(Json, nullable=False)
-    topic_tag = Column(String, nullable=True) #тема из лекции
+    question_type = Column(String, nullable=False)
+    options = Column(JSON, nullable=True)           
+    correct_answer = Column(Text, nullable=False)   
+    topic_tag = Column(String, nullable=True)
 
-    quiz = relationship("Quiz", back_populates = "questions")
+    quiz = relationship("Quiz", back_populates="questions")
 
 
 class QuizAttempt(Base):
@@ -35,8 +36,8 @@ class QuizAttempt(Base):
     id = Column(Integer, primary_key=True)
     quiz_id = Column(Integer, ForeignKey("quizzes.id"), nullable=False)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    score = Column(Float, nullable=False)
-    answers = Column(Json, nullable=False) #ответы пользователя
-    created_at = Column(DateTime(timezone=True),server_default=func.now())
+    score = Column(Float, nullable=True)
+    answers = Column(JSON, nullable=False)          
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
 
-    quiz = relationship("Quiz", back_populates = "questions")
+    quiz = relationship("Quiz", back_populates="attempts")  
