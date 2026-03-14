@@ -88,13 +88,22 @@ def _download_youtube(url: str) -> tuple[str, str]:
         }],
         "quiet": True,
         "no_warnings": True,
+        # Без этого YouTube блокирует как бота
+        "http_headers": {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        },
+        "extractor_args": {
+            "youtube": {
+                "player_client": ["android", "web"],
+            }
+        },
     }
 
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         ydl.download([url])
 
     audio_path = os.path.join(tmp_dir, "audio.mp3")
-    if not os.path.join(tmp_dir, "audio.mp3"):
+    if not os.path.exists(audio_path):
         raise RuntimeError("Не удалось скачать аудио с YouTube")
-    
+
     return audio_path, tmp_dir

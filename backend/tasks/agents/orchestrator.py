@@ -1,14 +1,20 @@
 """
-Оркестратор - точка входа пайплайн
+Оркестратор - точка входа пайплайна.
 """
 from celery import chain, group
 from tasks.celery_app import celery
 from tasks.agents.transcription_agent import transcription_agent
 from tasks.agents.topics_agent import topics_agent
 from tasks.agents.summary_agent import summary_agent
-from tasks.agents.quiz_agent import quiz_agent
+from . import quiz_agent
 from core.database import SessionLocal
 from models.content import Content, ProccesingStatus
+
+import models.user        
+import models.content     
+import models.transcript  
+import models.quiz        
+
 
 @celery.task(bind=True)
 def run_pipeline(self, content_id: int):

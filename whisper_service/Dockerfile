@@ -3,8 +3,6 @@ FROM python:3.11-slim
 WORKDIR /app
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential \
-    gcc \
     ffmpeg \
     pkg-config \
     libavformat-dev \
@@ -14,6 +12,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libavfilter-dev \
     libswscale-dev \
     libswresample-dev \
+    build-essential \
+    gcc \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .
