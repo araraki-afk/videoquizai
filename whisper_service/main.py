@@ -80,7 +80,7 @@ def _download_youtube(url: str) -> tuple[str, str]:
     output_template = os.path.join(tmp_dir, "audio.%(ext)s")
 
     ydl_opts = {
-        "format": "bestaudio/best",
+        "format": "worstaudio/bestaudio/best",
         "outtmpl": output_template,
         "postprocessors": [{
             "key": "FFmpegExtractAudio",
