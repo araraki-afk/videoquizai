@@ -10,6 +10,8 @@ from models.content import Content, ProccesingStatus
 from models.transcript import Transcript, Summary
 from models.quiz import Quiz, Question
 
+from core.groq_client import ask_groq_json
+
 import models.user       
 import models.content     
 import models.transcript  
@@ -32,7 +34,7 @@ def quiz_agent(self, content_id: int) -> int:
             raise ValueError("Транскрипция не найдена")
 
         topics = json.loads(summary.topics) if summary and summary.topics else []
-        questions_data = _generate_questions(transcript.text, topics)
+        questions_data = _generate_questions_with_llm(transcript.text, topics)
 
         quiz = Quiz(content_id=content_id, title=f"Тест: {content.title}")
         db.add(quiz)
@@ -50,6 +52,10 @@ def quiz_agent(self, content_id: int) -> int:
 
         content.status = ProccesingStatus.done
         db.commit()
+
+        from tasks.agents.quiz_validator_agent import quiz_validator_agent
+        quiz_validator_agent.delay(quiz.id)
+
         return content_id
 
     except Exception as exc:
@@ -63,29 +69,45 @@ def quiz_agent(self, content_id: int) -> int:
         db.close()
 
 
-def _generate_questions(text: str, topics: list[str]) -> list[dict]:
-    sentences = [s.strip() for s in text.replace("\n", " ").split(".") if len(s.strip()) > 40]
-    if not topics:
-        topics = ["Основная тема"]
+def _generate_questions_with_llm(text: str, topics: list[str]) -> list[dict]:
+    excerpt = text[:10000]
+    topics_str = ", ".join(topics) if topics else "основные темы материала"
 
+    result = ask_groq_json(
+        ystem_prompt="""Ты — преподаватель, составляющий тест по учебному материалу.
+Создай 10-12 вопросов разных типов.
+
+Верни JSON массив объектов. Каждый объект:
+{
+  "text": "Текст вопроса",
+  "type": "multiple_choice" | "true_false" | "open",
+  "options": ["Вариант A", "Вариант B", "Вариант C", "Вариант D"],  // только для multiple_choice и true_false
+  "answer": "Правильный ответ (для multiple_choice — точный текст варианта)",
+  "topic": "Тема из списка"
+}
+
+Требования:
+- 5-6 вопросов multiple_choice (4 варианта, один правильный)
+- 2-3 вопроса true_false (варианты: ["Верно", "Неверно"])  
+- 2-3 открытых вопроса (answer — краткий ответ 1-3 слова)
+- Вопросы должны проверять понимание, а не механическое запоминание
+- Распредели вопросы по темам равномерно""",
+        user_prompt=f"Темы материала: {topics_str}\n\nТекст:\n{excerpt}",
+        max_tokens=3000
+    )
+
+    if not isinstance(result, list):
+        return
+    
     questions = []
-    block_size = max(1, len(sentences) // len(topics))
-
-    for i, topic in enumerate(topics):
-        block = sentences[i * block_size:(i + 1) * block_size]
-        for sentence in block[:2]:
-            words = sentence.split()
-            if len(words) < 6:
-                continue
-            answer = words[-1].rstrip(".,!?;:")
-            question_text = " ".join(words[:-1]) + " ___?"
-
-            questions.append({
-                "text": question_text,
-                "type": "open",
-                "answer": answer,
-                "topic": topic,
-                "options": None
-            })
-
-    return questions[:15]
+    for q in result[:12]:
+        if not q.get("text") or not q.get("answer"):
+            continue
+        questions.append({
+            "text": q["text"],
+            "type": q.get("type", "open"),
+            "options": q.get("options"),
+            "answer": q['answer'],
+            "topic": q.get("topic", topics[0] if topics else "общая тема")
+        })
+    return questions
