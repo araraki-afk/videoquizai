@@ -19,7 +19,7 @@ def topics_agent(self, content_id: int) -> int:
         if not transcript:
             raise ValueError("Транскрипция не найдена")
         
-        topics = _extract_topics(transcript.text)
+        topics = _extract_topics_with_llm(transcript.text)
 
         #Заготовка для агента суммаризации
         existing = db.query(Summary).filter(Summary.content_id == content_id).first()

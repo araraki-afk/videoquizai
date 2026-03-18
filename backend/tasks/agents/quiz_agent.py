@@ -9,16 +9,15 @@ from core.database import SessionLocal
 from models.content import Content, ProccesingStatus
 from models.transcript import Transcript, Summary
 from models.quiz import Quiz, Question
-
 from core.groq_client import ask_groq_json
 
-import models.user       
-import models.content     
-import models.transcript  
-import models.quiz        
+import models.user
+import models.content
+import models.transcript
+import models.quiz
 
 
-@celery.task(bind=True, max_retries=2)   
+@celery.task(bind=True, max_retries=2)
 def quiz_agent(self, content_id: int) -> int:
     db = SessionLocal()
     try:
@@ -74,31 +73,31 @@ def _generate_questions_with_llm(text: str, topics: list[str]) -> list[dict]:
     topics_str = ", ".join(topics) if topics else "основные темы материала"
 
     result = ask_groq_json(
-        ystem_prompt="""Ты — преподаватель, составляющий тест по учебному материалу.
+        system_prompt="""Ты — преподаватель, составляющий тест по учебному материалу.
 Создай 10-12 вопросов разных типов.
 
 Верни JSON массив объектов. Каждый объект:
 {
   "text": "Текст вопроса",
   "type": "multiple_choice" | "true_false" | "open",
-  "options": ["Вариант A", "Вариант B", "Вариант C", "Вариант D"],  // только для multiple_choice и true_false
+  "options": ["Вариант A", "Вариант B", "Вариант C", "Вариант D"],
   "answer": "Правильный ответ (для multiple_choice — точный текст варианта)",
   "topic": "Тема из списка"
 }
 
 Требования:
 - 5-6 вопросов multiple_choice (4 варианта, один правильный)
-- 2-3 вопроса true_false (варианты: ["Верно", "Неверно"])  
+- 2-3 вопроса true_false (варианты: ["Верно", "Неверно"])
 - 2-3 открытых вопроса (answer — краткий ответ 1-3 слова)
 - Вопросы должны проверять понимание, а не механическое запоминание
-- Распредели вопросы по темам равномерно""",
+- Распредели вопросы по темам равномерно""",  
         user_prompt=f"Темы материала: {topics_str}\n\nТекст:\n{excerpt}",
         max_tokens=3000
     )
 
     if not isinstance(result, list):
-        return
-    
+        return []  
+
     questions = []
     for q in result[:12]:
         if not q.get("text") or not q.get("answer"):
@@ -107,7 +106,7 @@ def _generate_questions_with_llm(text: str, topics: list[str]) -> list[dict]:
             "text": q["text"],
             "type": q.get("type", "open"),
             "options": q.get("options"),
-            "answer": q['answer'],
-            "topic": q.get("topic", topics[0] if topics else "общая тема")
+            "answer": q["answer"],
+            "topic": q.get("topic", topics[0] if topics else "Общая тема")
         })
     return questions

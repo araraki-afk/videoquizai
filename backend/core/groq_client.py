@@ -18,7 +18,7 @@ def ask_groq(system_prompt: str, user_prompt: str, max_tokens: int = 2000) -> st
     }
 
     payload ={
-        "model": "llama-3.3-70b-versatiole",
+        "model": "llama-3.3-70b-versatile",
         "messages": [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content" : user_prompt},
@@ -27,7 +27,7 @@ def ask_groq(system_prompt: str, user_prompt: str, max_tokens: int = 2000) -> st
         "temperature": 0.3 #lower the temp, more predictable the answers
     }
     response = httpx.post(
-        "https://api.groq.com/openai/v1/chat/completions",
+        "https://api.groq.com/openai/v1",
         headers=headers,
         json=payload,
         timeout=60.0

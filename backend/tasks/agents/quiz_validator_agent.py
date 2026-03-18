@@ -1,41 +1,30 @@
 """
-Агент валидации теста
-
-Запускается после quiz_agent. Проверяет:
-1. Соответствие вопросов сложности
-2. Корректность правильных ответов
-3. Качество неверных ответов
-4. Уровень сложности
-
-Если находит проблемы - исправляет.
+Агент валидации теста.
+Запускается после quiz_agent. Проверяет качество теста через Groq.
 """
 import json
 from tasks.celery_app import celery
 from core.database import SessionLocal
 from core.groq_client import ask_groq_json
-from models.quiz import Quiz, Question, QuizAttempt
+from models.quiz import Quiz, Question
 from models.transcript import Summary
+
 
 @celery.task(bind=True, max_retries=2)
 def quiz_validator_agent(self, quiz_id: int) -> dict:
-    """
-    Валидирует тест и возвращает отчёт о качестве.
-    Не блокирует доступ к тесту - пользователь может проходить даже во время валидации. на доработке
-    """
     db = SessionLocal()
-
     try:
         quiz = db.query(Quiz).filter(Quiz.id == quiz_id).first()
         if not quiz or not quiz.questions:
             return {"status": "skipped", "reason": "quiz not found or empty"}
-        
+
         summary = db.query(Summary).filter(
             Summary.content_id == quiz.content_id
         ).first()
-        declared_topics = json.loads(summary.topics) if summary.topics and summary else []
-        summary_text= summary.text if summary else []
 
-        #list of questions for review
+        declared_topics = json.loads(summary.topics) if summary and summary.topics else []
+        summary_text = summary.text if summary else ""
+
         questions_for_review = [
             {
                 "id": q.id,
@@ -48,7 +37,6 @@ def quiz_validator_agent(self, quiz_id: int) -> dict:
             for q in quiz.questions
         ]
 
-        #llm check
         validation_result = _validate_with_llm(
             questions=questions_for_review,
             declared_topics=declared_topics,
@@ -56,13 +44,12 @@ def quiz_validator_agent(self, quiz_id: int) -> dict:
         )
 
         improvements_count = 0
-        for item in validation_result:
+        for item in validation_result.get("improvements", []):
             question = db.query(Question).filter(
                 Question.id == item.get("question_id")
             ).first()
             if not question:
                 continue
-
             if item.get("new_text"):
                 question.text = item["new_text"]
                 improvements_count += 1
@@ -88,68 +75,52 @@ def quiz_validator_agent(self, quiz_id: int) -> dict:
 
     except Exception as exc:
         print(f"[quiz_validator] Error: {exc}")
-        # Валидатор не должен ломать пайплайн — просто логируем
         return {"status": "error", "reason": str(exc)}
     finally:
         db.close()
 
 
 def _validate_with_llm(
-        questions: list[dict],
-        declared_topics: list[str],
-        summary: str
+    questions: list[dict],
+    declared_topics: list[str],
+    summary: str
 ) -> dict:
-    topics_str = ", ".join(declared_topics) if declared_topics else "no topics"
-    questions_str= json.dumps(questions, ensure_ascii=False, indent=2)
+    topics_str = ", ".join(declared_topics) if declared_topics else "не определены"
+    questions_str = json.dumps(questions, ensure_ascii=False, indent=2)
 
     result = ask_groq_json(
-        system_prompt="""Ты — эксперт по педагогическому дизайну. 
+        system_prompt="""Ты — эксперт по педагогическому дизайну.
 Проверь качество теста и верни JSON:
 
 {
-  "quality_score": 8,  // от 1 до 10
+  "quality_score": 8,
   "difficulty_level": "easy" | "medium" | "hard",
-  "issues_found": [
-    "Вопрос #3 содержит подсказку в формулировке",
-    "Вопрос #7 не соответствует заявленным темам"
-  ],
-  "topics_coverage": {
-    "Тема 1": 3,  // сколько вопросов покрывает эту тему
-    "Тема 2": 2
-  },
+  "issues_found": ["описание проблемы"],
+  "topics_coverage": {"Тема 1": 3, "Тема 2": 2},
   "improvements": [
     {
       "question_id": 42,
-      "problem": "Слишком очевидный правильный ответ",
-      "new_text": "Улучшенная формулировка вопроса",
+      "problem": "описание",
+      "new_text": "улучшенный вопрос или null",
       "new_answer": null,
       "new_topic": null
     }
   ]
 }
 
-Проверяй:
-1. Соответствие вопросов заявленным темам
-2. Правильность ответов (сверь с конспектом)
-3. Качество дистракторов — неверные варианты должны быть правдоподобными
-4. Нет ли подсказок в формулировке вопроса
-5. Равномерность распределения по темам
-6. Адекватный уровень сложности
-
-В improvements предлагай улучшения только для реально проблемных вопросов (не более 3).""",
+Проверяй: соответствие темам, правильность ответов, качество дистракторов,
+подсказки в формулировках, равномерность по темам, уровень сложности.
+Improvements — максимум 3 вопроса.""",
         user_prompt=f"""Заявленные темы: {topics_str}
 
-Конспект материала:
+Конспект:
 {summary}
 
-Вопросы теста:
+Вопросы:
 {questions_str}""",
         max_tokens=2000
     )
 
-
-
-    # Если LLM вернул не то что нужно — возвращаем базовый результат
     if not isinstance(result, dict):
         return {"quality_score": 5, "issues_found": [], "improvements": []}
     return result
