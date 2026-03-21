@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, ForeignKey, DateTime, Text, Float, JSON
+from sqlalchemy import Column, Integer, String, ForeignKey, DateTime, Text, Float, JSON, Boolean
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from core.database import Base
@@ -10,6 +10,9 @@ class Quiz(Base):
     content_id = Column(Integer, ForeignKey("contents.id"), nullable=False)
     title = Column(String, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    #после валидации True, пока False не показываем
+    is_validated = Column(Boolean, default=False, nullable=False)
 
     content = relationship("Content", back_populates="quizzes")
     questions = relationship("Question", back_populates="quiz", cascade="all, delete")

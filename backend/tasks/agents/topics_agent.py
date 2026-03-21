@@ -7,7 +7,7 @@ from tasks.celery_app import celery
 from core.database import SessionLocal
 from models.content import Content, ProccesingStatus
 from models.transcript import Transcript, Summary
-from core.groq_client import ask_groq_json
+from core.gpt_client import ask_gpt_json
 
 
 @celery.task(bind = True, max_retries=2)
@@ -49,7 +49,7 @@ def _extract_topics_with_llm(text:str) -> list[str]:
     # обрезаем до 8000 символов
     excerpt = text[:8000]
 
-    result = ask_groq_json(
+    result = ask_gpt_json(
         system_prompt="""Ты — эксперт по анализу образовательного контента.
 Твоя задача — выделить основные темы из текста лекции или статьи.
 Верни JSON массив строк — названия тем. Максимум 8 тем.

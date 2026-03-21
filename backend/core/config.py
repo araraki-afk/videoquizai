@@ -10,7 +10,7 @@ class Settings(BaseSettings):
     MAX_UPLOAD_SIZE_MB: int = 500
     WHISPER_MODEL: str = "small"
     WHISPER_SERVICE_URL: str = "http://whisper:8001"
-    GROQ_API_KEY: str  = ""
+    OPENAI_API_KEY: str  = ""
 
     class Config:
         env_file=".env"

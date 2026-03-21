@@ -15,3 +15,6 @@ backend/api/v1/__pycache__/quiz.cpython-311.pyc
 backend/api/v1/__pycache__/auth.cpython-311.pyc
 backend/api/v1/__pycache__/auth.cpython-311.pyc
 backend/tasks/agents/__pycache__/
+
+__pycache__/
+*.pyc
