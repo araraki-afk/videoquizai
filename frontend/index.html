@@ -665,6 +665,140 @@
   ::-webkit-scrollbar-track { background: var(--bg); }
   ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
   ::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+
+  /* ── FEEDBACK UI ──────────────────────────────────────────── */
+  .feedback-section { margin-top: 20px; }
+  .feedback-heading {
+    font-family: 'Syne', sans-serif;
+    font-size: 18px;
+    font-weight: 700;
+    margin-bottom: 12px;
+    color: var(--text);
+  }
+  .overall-summary {
+    background: var(--surface2);
+    border-left: 3px solid var(--accent);
+    border-radius: 8px;
+    padding: 14px 16px;
+    font-size: 14px;
+    line-height: 1.55;
+    color: var(--text);
+    margin-bottom: 16px;
+    white-space: pre-wrap;
+  }
+  .mastery-pill {
+    display: inline-block;
+    padding: 4px 12px;
+    border-radius: 999px;
+    background: rgba(124,106,255,0.15);
+    color: var(--accent);
+    font-size: 12px;
+    font-weight: 500;
+    margin-left: 8px;
+  }
+  .strengths-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+  }
+  .strengths-list li {
+    padding: 8px 12px;
+    margin-bottom: 6px;
+    background: rgba(74,222,128,0.08);
+    border-left: 2px solid var(--success);
+    border-radius: 6px;
+    font-size: 13px;
+    color: var(--text);
+  }
+  .rec-item {
+    padding: 12px 14px;
+    margin-bottom: 10px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+  }
+  .rec-topic {
+    font-family: 'Syne', sans-serif;
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--accent2);
+    margin-bottom: 4px;
+  }
+  .rec-reason { font-size: 12px; color: var(--text-muted); margin-bottom: 6px; }
+  .rec-action { font-size: 13px; color: var(--text); }
+
+  .q-review {
+    padding: 14px 16px;
+    margin-bottom: 10px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+  }
+  .q-review.correct { border-left: 3px solid var(--success); }
+  .q-review.wrong { border-left: 3px solid var(--error); }
+  .q-review.skipped { border-left: 3px solid var(--text-muted); }
+  .q-review-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-bottom: 8px;
+    gap: 8px;
+  }
+  .q-review-text {
+    font-size: 14px;
+    color: var(--text);
+    margin-bottom: 10px;
+    line-height: 1.5;
+  }
+  .q-review-answers {
+    display: grid;
+    gap: 6px;
+    margin-bottom: 10px;
+    font-size: 13px;
+  }
+  .q-review-answer {
+    padding: 6px 10px;
+    border-radius: 6px;
+    background: var(--surface);
+    color: var(--text-muted);
+  }
+  .q-review-answer .lbl {
+    display: inline-block;
+    min-width: 72px;
+    color: var(--text-muted);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .q-review-answer.user-wrong { color: var(--error); }
+  .q-review-answer.user-correct { color: var(--success); }
+  .q-review-answer .val { color: inherit; }
+  .q-review-explanation {
+    font-size: 13px;
+    color: var(--text);
+    line-height: 1.5;
+    padding: 8px 10px;
+    background: rgba(124,106,255,0.08);
+    border-radius: 6px;
+  }
+  .mistake-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 10px;
+    font-weight: 500;
+    letter-spacing: 0.4px;
+    text-transform: uppercase;
+  }
+  .mistake-conceptual { background: rgba(248,113,113,0.15); color: var(--error); }
+  .mistake-careless  { background: rgba(251,191,36,0.15); color: var(--warning); }
+  .mistake-knowledge_gap { background: rgba(124,106,255,0.15); color: var(--accent); }
+  .mistake-partial { background: rgba(106,255,212,0.15); color: var(--accent3); }
+
+  .history-row-clickable { cursor: pointer; transition: background 0.15s; }
+  .history-row-clickable:hover { background: var(--surface2); }
 </style>
 </head>
 <body>
@@ -806,6 +940,7 @@
         <div class="upload-tabs">
           <button class="upload-tab active" onclick="switchUploadTab('url')">🎬 YouTube URL</button>
           <button class="upload-tab" onclick="switchUploadTab('text')">📝 Текст</button>
+          <button class="upload-tab" onclick="switchUploadTab('file')">📹 Файл</button>
         </div>
 
         <!-- URL panel -->
@@ -837,6 +972,21 @@
           </div>
           <button class="btn btn-primary" style="width:auto" onclick="uploadText()" id="btn-upload-text">
             Обработать текст
+          </button>
+        </div>
+
+        <!-- File panel -->
+        <div id="upload-file" class="upload-panel">
+          <div class="form-group">
+            <label class="form-label">Видео или аудио файл</label>
+            <input type="file" id="upload-file-input" class="form-input"
+              accept="video/*,audio/*">
+          </div>
+          <div style="font-size:12px;color:var(--text-muted);margin-bottom:12px">
+            Файл будет расшифрован через Whisper, затем мы построим конспект и тест.
+          </div>
+          <button class="btn btn-primary" style="width:auto" onclick="uploadFile()" id="btn-upload-file">
+            Загрузить файл
           </button>
         </div>
       </div>
@@ -872,6 +1022,13 @@
       <div class="view-title">Аналитика</div>
       <div class="view-subtitle">Ваш прогресс и слабые места</div>
       <div id="analytics-body"></div>
+    </div>
+
+    <!-- ── ATTEMPT DETAIL (review past attempt) ───────────── -->
+    <div id="view-attempt" class="view">
+      <div class="back-btn" onclick="showView('analytics')">← Назад к аналитике</div>
+      <div class="view-title" id="attempt-title">Разбор попытки</div>
+      <div id="attempt-body"></div>
     </div>
 
   </main>
@@ -1075,11 +1232,14 @@ async function loadDashboard() {
 
 // ── UPLOAD ───────────────────────────────────────────────────
 function switchUploadTab(tab) {
+  const tabs = ['url', 'text', 'file'];
   document.querySelectorAll('.upload-tab').forEach((t, i) => {
-    t.classList.toggle('active', (i===0 && tab==='url') || (i===1 && tab==='text'));
+    t.classList.toggle('active', tabs[i] === tab);
   });
-  document.getElementById('upload-url').classList.toggle('active', tab === 'url');
-  document.getElementById('upload-text').classList.toggle('active', tab === 'text');
+  tabs.forEach(name => {
+    const panel = document.getElementById(`upload-${name}`);
+    if (panel) panel.classList.toggle('active', name === tab);
+  });
 }
 
 async function uploadURL() {
@@ -1135,6 +1295,39 @@ async function uploadText() {
     showToast(e.message, 'error');
   } finally {
     btn.textContent = 'Обработать текст';
+    btn.disabled = false;
+  }
+}
+
+async function uploadFile() {
+  const fileInput = document.getElementById('upload-file-input');
+  const file = fileInput?.files?.[0];
+  if (!file) return showToast('Выберите файл', 'error');
+
+  const btn = document.getElementById('btn-upload-file');
+  btn.innerHTML = '<span class="spinner"></span> Загрузка...';
+  btn.disabled = true;
+
+  try {
+    const form = new FormData();
+    form.append('file', file);
+    const r = await fetch(`${API}/content/upload`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+      body: form
+    });
+    if (!r.ok) {
+      let msg = 'Ошибка загрузки';
+      try { msg = (await r.json()).detail || msg; } catch (_) {}
+      throw new Error(msg);
+    }
+    showToast('Файл загружен! Идёт транскрипция и генерация теста.', 'success');
+    fileInput.value = '';
+    showView('content');
+  } catch(e) {
+    showToast(e.message, 'error');
+  } finally {
+    btn.textContent = 'Загрузить файл';
     btn.disabled = false;
   }
 }
@@ -1333,7 +1526,7 @@ function nextQuestion() {
 
 async function submitQuiz() {
   const body = document.getElementById('quiz-body');
-  body.innerHTML = `<div style="text-align:center;padding:48px"><span class="spinner"></span><p style="margin-top:16px;color:var(--text-muted)">Проверяем ответы...</p></div>`;
+  body.innerHTML = `<div style="text-align:center;padding:48px"><span class="spinner"></span><p style="margin-top:16px;color:var(--text-muted)">Проверяем ответы и готовим разбор...</p></div>`;
 
   try {
     const r = await fetch(`${API}/quiz/${currentQuizId}/submit`, {
@@ -1341,41 +1534,149 @@ async function submitQuiz() {
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
       body: JSON.stringify({ answers: quizAnswers })
     });
+    if (!r.ok) {
+      let detail = 'Ошибка при отправке';
+      try { detail = (await r.json()).detail || detail; } catch(_) {}
+      throw new Error(detail);
+    }
     const result = await r.json();
-
-    const scoreColor = result.score >= 70 ? 'var(--success)' : result.score >= 40 ? 'var(--warning)' : 'var(--error)';
-    const emoji = result.score >= 70 ? '🎉' : result.score >= 40 ? '📚' : '💪';
-
-    body.innerHTML = `
-      <div style="text-align:center;padding:32px 0">
-        <div class="result-circle" style="border-color:${scoreColor}">
-          <div class="result-score" style="color:${scoreColor}">${result.score}%</div>
-          <div class="result-label">${result.correct}/${result.total}</div>
-        </div>
-        <div style="font-family:'Syne',sans-serif;font-size:24px;font-weight:700;margin-bottom:8px">
-          ${emoji} ${result.score >= 70 ? 'Отлично!' : result.score >= 40 ? 'Неплохо!' : 'Нужно повторить'}
-        </div>
-        <div style="color:var(--text-muted);font-size:14px;margin-bottom:24px">
-          Правильных ответов: ${result.correct} из ${result.total}
-        </div>
-        ${result.weak_topics?.length > 0 ? `
-          <div class="card" style="text-align:left;max-width:400px;margin:0 auto 24px">
-            <div class="card-title">⚠️ Темы для повторения</div>
-            ${result.weak_topics.map(t => `<div style="padding:6px 0;font-size:13px;color:var(--text-muted)">• ${t}</div>`).join('')}
-          </div>` : ''}
-        <div style="display:flex;gap:10px;justify-content:center">
-          <button class="btn btn-secondary" onclick="startQuiz(${currentQuizId}, document.getElementById('quiz-title').textContent)">
-            Пройти ещё раз
-          </button>
-          <button class="btn btn-primary" style="width:auto" onclick="showView('analytics')">
-            Посмотреть аналитику
-          </button>
-        </div>
-      </div>
-    `;
+    renderQuizResult(result);
   } catch(e) {
-    body.innerHTML = `<div class="empty-state"><div class="empty-text">Ошибка при отправке</div></div>`;
+    body.innerHTML = `<div class="empty-state"><div class="empty-text">${escapeHtml(e.message)}</div></div>`;
   }
+}
+
+// Отрисовка экрана результата (после submit). Использует общий renderFeedback().
+function renderQuizResult(result) {
+  const body = document.getElementById('quiz-body');
+  const scoreColor = result.score >= 70 ? 'var(--success)' :
+                     result.score >= 40 ? 'var(--warning)' : 'var(--error)';
+  const emoji = result.score >= 70 ? '🎉' : result.score >= 40 ? '📚' : '💪';
+  const headline = result.score >= 70 ? 'Отличный результат!' :
+                   result.score >= 40 ? 'Неплохо, есть куда расти' :
+                   'Материал нужно повторить';
+
+  body.innerHTML = `
+    <div style="text-align:center;padding:24px 0 8px 0">
+      <div class="result-circle" style="border-color:${scoreColor}">
+        <div class="result-score" style="color:${scoreColor}">${result.score}%</div>
+        <div class="result-label">${result.correct}/${result.total}</div>
+      </div>
+      <div style="font-family:'Syne',sans-serif;font-size:22px;font-weight:700;margin-bottom:6px">
+        ${emoji} ${headline}
+      </div>
+      <div style="color:var(--text-muted);font-size:13px;margin-bottom:20px">
+        Правильных ответов: ${result.correct} из ${result.total}
+      </div>
+      <div style="display:flex;gap:10px;justify-content:center;margin-bottom:24px">
+        <button class="btn btn-secondary btn-sm" onclick="startQuiz(${currentQuizId}, document.getElementById('quiz-title').textContent)">
+          🔁 Пройти ещё раз
+        </button>
+        <button class="btn btn-secondary btn-sm" onclick="showView('analytics')">
+          📊 Аналитика
+        </button>
+      </div>
+    </div>
+    <div id="feedback-container"></div>
+  `;
+
+  renderFeedback(document.getElementById('feedback-container'), result.feedback);
+}
+
+// Общий рендерер AI-разбора. container — DOM-элемент, feedback — объект из API.
+function renderFeedback(container, fb) {
+  if (!fb) {
+    container.innerHTML = '';
+    return;
+  }
+
+  const masteryPill = fb.mastery_score != null
+    ? `<span class="mastery-pill">Понимание: ${Math.round(fb.mastery_score)}%</span>` : '';
+
+  const strengthsHTML = (fb.strengths && fb.strengths.length > 0) ? `
+    <div class="feedback-section">
+      <div class="feedback-heading">✅ Сильные стороны</div>
+      <ul class="strengths-list">
+        ${fb.strengths.map(s => `<li>${escapeHtml(s)}</li>`).join('')}
+      </ul>
+    </div>` : '';
+
+  const recsHTML = (fb.recommendations && fb.recommendations.length > 0) ? `
+    <div class="feedback-section">
+      <div class="feedback-heading">🎯 Рекомендации</div>
+      ${fb.recommendations.map(r => `
+        <div class="rec-item">
+          <div class="rec-topic">${escapeHtml(r.topic || '')}</div>
+          ${r.reason ? `<div class="rec-reason">${escapeHtml(r.reason)}</div>` : ''}
+          ${r.action ? `<div class="rec-action">${escapeHtml(r.action)}</div>` : ''}
+        </div>`).join('')}
+    </div>` : '';
+
+  const questionsHTML = (fb.per_question && fb.per_question.length > 0) ? `
+    <div class="feedback-section">
+      <div class="feedback-heading">🔍 Разбор по вопросам</div>
+      ${fb.per_question.map((q, i) => renderQuestionReview(q, i + 1)).join('')}
+    </div>` : '';
+
+  container.innerHTML = `
+    <div class="feedback-section">
+      <div class="feedback-heading">📝 Общий разбор${masteryPill}</div>
+      <div class="overall-summary">${escapeHtml(fb.overall_summary || '')}</div>
+    </div>
+    ${strengthsHTML}
+    ${recsHTML}
+    ${questionsHTML}
+  `;
+}
+
+function renderQuestionReview(q, idx) {
+  let cls = 'correct';
+  let statusLabel = '✓ верно';
+  if (q.skipped) { cls = 'skipped'; statusLabel = '⊝ пропущено'; }
+  else if (!q.is_correct) { cls = 'wrong'; statusLabel = '✗ неверно'; }
+
+  const mistakeLabels = {
+    conceptual: 'непонимание сути',
+    careless: 'невнимательность',
+    knowledge_gap: 'пробел в знаниях',
+    partial: 'почти верно',
+  };
+  const mistakeBadge = q.mistake_type && mistakeLabels[q.mistake_type]
+    ? `<span class="mistake-badge mistake-${q.mistake_type}">${mistakeLabels[q.mistake_type]}</span>`
+    : '';
+
+  const userAnswerCls = q.is_correct ? 'user-correct' : (q.skipped ? '' : 'user-wrong');
+  const userAnswerText = q.skipped ? '— (пропущено)' : escapeHtml(q.user_answer || '—');
+
+  return `
+    <div class="q-review ${cls}">
+      <div class="q-review-header">
+        <span>Вопрос ${idx}${q.topic ? ` • ${escapeHtml(q.topic)}` : ''}</span>
+        <span>${statusLabel} ${mistakeBadge}</span>
+      </div>
+      <div class="q-review-text">${escapeHtml(q.question_text || '')}</div>
+      <div class="q-review-answers">
+        <div class="q-review-answer ${userAnswerCls}">
+          <span class="lbl">Ваш ответ:</span> <span class="val">${userAnswerText}</span>
+        </div>
+        ${!q.is_correct ? `
+        <div class="q-review-answer user-correct">
+          <span class="lbl">Правильно:</span> <span class="val">${escapeHtml(q.correct_answer || '')}</span>
+        </div>` : ''}
+      </div>
+      ${q.explanation ? `<div class="q-review-explanation">${escapeHtml(q.explanation)}</div>` : ''}
+    </div>
+  `;
+}
+
+function escapeHtml(s) {
+  if (s == null) return '';
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 }
 
 // ── ANALYTICS ────────────────────────────────────────────────
@@ -1392,13 +1693,14 @@ async function loadAnalytics() {
     const scoreColor = data.average_score >= 70 ? 'var(--success)' :
                        data.average_score >= 40 ? 'var(--warning)' : 'var(--error)';
 
+    // Слабые темы
     let weakHTML = '';
     if (data.weak_topics?.length > 0) {
       const maxErr = Math.max(...data.weak_topics.map(t => t.errors));
       weakHTML = `<ul class="topics-list">${
         data.weak_topics.map(t => `
           <li class="topic-item">
-            <span class="topic-name">${t.topic}</span>
+            <span class="topic-name">${escapeHtml(t.topic)}</span>
             <div class="topic-bar-wrap">
               <div class="topic-bar" style="width:${t.errors/maxErr*100}%"></div>
             </div>
@@ -1409,20 +1711,56 @@ async function loadAnalytics() {
       weakHTML = `<div class="empty-state"><div class="empty-text">Нет данных — пройдите тесты</div></div>`;
     }
 
+    // История — каждая запись кликабельна, открывает разбор попытки
     let historyHTML = '';
     if (data.history?.length > 0) {
-      historyHTML = data.history.slice(0, 10).map(h => `
-        <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 0;border-bottom:1px solid var(--border)">
-          <div>
-            <div style="font-size:14px;font-weight:500">${h.quiz_title}</div>
-            <div style="font-size:12px;color:var(--text-muted)">${new Date(h.created_at).toLocaleDateString('ru')}</div>
-          </div>
-          <div style="font-family:'Syne',sans-serif;font-size:20px;font-weight:700;color:${h.score>=70?'var(--success)':h.score>=40?'var(--warning)':'var(--error)'}">
-            ${h.score}%
-          </div>
-        </div>`).join('');
+      historyHTML = data.history.slice(0, 20).map(h => {
+        const color = h.score>=70 ? 'var(--success)' : h.score>=40 ? 'var(--warning)' : 'var(--error)';
+        const dateStr = new Date(h.created_at).toLocaleString('ru', {
+          day: '2-digit', month: '2-digit', year: 'numeric',
+          hour: '2-digit', minute: '2-digit'
+        });
+        return `
+          <div class="history-row-clickable" style="display:flex;align-items:center;justify-content:space-between;padding:12px;border-bottom:1px solid var(--border);border-radius:6px"
+               onclick="openAttempt(${h.attempt_id})">
+            <div>
+              <div style="font-size:14px;font-weight:500">${escapeHtml(h.quiz_title || '—')}</div>
+              <div style="font-size:12px;color:var(--text-muted)">${dateStr}</div>
+            </div>
+            <div style="display:flex;align-items:center;gap:10px">
+              <div style="font-family:'Syne',sans-serif;font-size:20px;font-weight:700;color:${color}">${h.score}%</div>
+              <span style="color:var(--text-muted);font-size:14px">›</span>
+            </div>
+          </div>`;
+      }).join('');
     } else {
       historyHTML = `<div class="empty-state"><div class="empty-text">История пуста</div></div>`;
+    }
+
+    // Последний AI-разбор (краткий, со ссылкой на полный)
+    let latestHTML = '';
+    if (data.latest_feedback) {
+      const lf = data.latest_feedback;
+      const masteryPill = lf.mastery_score != null
+        ? `<span class="mastery-pill">Понимание: ${Math.round(lf.mastery_score)}%</span>` : '';
+      const topRecs = (lf.recommendations || []).slice(0, 3);
+      const recsInline = topRecs.length > 0
+        ? `<div style="margin-top:10px">${topRecs.map(r => `
+            <div class="rec-item">
+              <div class="rec-topic">${escapeHtml(r.topic || '')}</div>
+              ${r.action ? `<div class="rec-action">${escapeHtml(r.action)}</div>` : ''}
+            </div>`).join('')}</div>`
+        : '';
+      latestHTML = `
+        <div class="card">
+          <div class="card-title">🤖 Последний разбор от AI-наставника${masteryPill}</div>
+          <div class="overall-summary">${escapeHtml(lf.overall_summary || '')}</div>
+          ${recsInline}
+          <button class="btn btn-secondary btn-sm" style="margin-top:12px"
+                  onclick="openAttempt(${lf.attempt_id})">
+            Открыть полный разбор →
+          </button>
+        </div>`;
     }
 
     body.innerHTML = `
@@ -1440,6 +1778,7 @@ async function loadAnalytics() {
           <div class="stat-label">Слабых тем</div>
         </div>
       </div>
+      ${latestHTML}
       <div class="card">
         <div class="card-title">⚠️ Слабые темы</div>
         ${weakHTML}
@@ -1451,6 +1790,47 @@ async function loadAnalytics() {
     `;
   } catch(e) {
     body.innerHTML = `<div class="empty-state"><div class="empty-text">Ошибка загрузки</div></div>`;
+  }
+}
+
+// ── ATTEMPT DETAIL ───────────────────────────────────────────
+async function openAttempt(attemptId) {
+  showView('attempt');
+  const body = document.getElementById('attempt-body');
+  document.getElementById('attempt-title').textContent = 'Разбор попытки';
+  body.innerHTML = `<div style="text-align:center;padding:48px"><span class="spinner"></span><p style="margin-top:12px;color:var(--text-muted)">Загружаем разбор...</p></div>`;
+
+  try {
+    const r = await fetch(`${API}/quiz/attempts/${attemptId}`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    if (!r.ok) {
+      let msg = 'Ошибка загрузки разбора';
+      try { msg = (await r.json()).detail || msg; } catch(_) {}
+      throw new Error(msg);
+    }
+    const data = await r.json();
+
+    document.getElementById('attempt-title').textContent =
+      data.quiz_title ? `Разбор: ${data.quiz_title}` : 'Разбор попытки';
+
+    const score = data.score ?? 0;
+    const color = score >= 70 ? 'var(--success)' : score >= 40 ? 'var(--warning)' : 'var(--error)';
+    const dateStr = new Date(data.created_at).toLocaleString('ru', {
+      day: '2-digit', month: '2-digit', year: 'numeric',
+      hour: '2-digit', minute: '2-digit'
+    });
+
+    body.innerHTML = `
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:16px;flex-wrap:wrap">
+        <div style="color:var(--text-muted);font-size:13px">Попытка от ${dateStr}</div>
+        <div style="font-family:'Syne',sans-serif;font-size:28px;font-weight:700;color:${color}">${score}%</div>
+      </div>
+      <div id="attempt-feedback-container"></div>
+    `;
+    renderFeedback(document.getElementById('attempt-feedback-container'), data.feedback);
+  } catch(e) {
+    body.innerHTML = `<div class="empty-state"><div class="empty-text">${escapeHtml(e.message)}</div></div>`;
   }
 }
 
