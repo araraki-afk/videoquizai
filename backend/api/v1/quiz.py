@@ -4,35 +4,39 @@ from core.database import get_db
 from core.dependencies import get_current_user
 from models.user import User
 from models.quiz import Quiz, QuizAttempt
-from schemas.quiz import QuizResponse, QuizAttemptResult, QuizAttemptSubmit, AttemptFeedbackResponse, AttemptSummaryResponse, AttemptDetailResponse
-
+from models.feedback import AttemptFeedback
+from schemas.quiz import (
+    QuizResponse, QuizAttemptResult, QuizAttemptSubmit,
+    AttemptFeedbackResponse, AttemptSummaryResponse, AttemptDetailResponse,
+)
 from tasks.agents.feedback_agent import run_feedback_agent
 
 router = APIRouter(prefix="/quiz", tags=["quiz"])
 
+
 def _get_validated_quiz(quiz_id: int, db: Session) -> Quiz:
-    """
-    возвращает тест только если он прошел валидацию, если нет - 202
-    """
     quiz = db.query(Quiz).filter(Quiz.id == quiz_id).first()
     if not quiz:
         raise HTTPException(status_code=404, detail="Тест не найден")
     if not quiz.is_validated:
-        raise HTTPException(status_code=202, detail="Тест все еще проходит проверку качества. Подождите")
+        raise HTTPException(
+            status_code=202,
+            detail="Тест ещё проходит проверку качества. Подождите.",
+        )
     return quiz
 
 
-#получение теста
 @router.get("/by-content/{content_id}", response_model=list[QuizResponse])
 def quizzes_by_content(
     content_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """
-    Только проверенные тесты для данного материала
-    """
-    return (db.query(Quiz).filter(Quiz.content_id == content_id, Quiz.is_validated == True).all())
+    return (
+        db.query(Quiz)
+        .filter(Quiz.content_id == content_id, Quiz.is_validated == True)  # noqa
+        .all()
+    )
 
 
 @router.get("/{quiz_id}", response_model=QuizResponse)
@@ -41,14 +45,9 @@ def get_quiz(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """
-    Тест по его айди
-    """
     return _get_validated_quiz(quiz_id, db)
 
 
-
-#отправка попытки
 @router.post("/{quiz_id}/submit", response_model=QuizAttemptResult)
 def submit_quiz(
     quiz_id: int,
@@ -58,8 +57,9 @@ def submit_quiz(
 ):
     quiz = _get_validated_quiz(quiz_id, db)
 
-    # ответы в БД храним строковыми ключами (как и везде в проекте)
-    answers_normalized: dict[str, str] = {str(k): (v or "") for k, v in body.answers.items()}
+    answers_normalized: dict[str, str] = {
+        str(k): (v or "") for k, v in body.answers.items()
+    }
 
     correct = 0
     weak_topics: list[str] = []
@@ -88,7 +88,6 @@ def submit_quiz(
     db.commit()
     db.refresh(attempt)
 
-    # Запускаем агента аналитики синхронно
     feedback = run_feedback_agent(db, attempt)
 
     return QuizAttemptResult(
@@ -96,7 +95,7 @@ def submit_quiz(
         score=score,
         total=total,
         correct=correct,
-        weak_topics=list(dict.fromkeys(weak_topics)),  # uniq с сохранением порядка
+        weak_topics=list(dict.fromkeys(weak_topics)),
         feedback=AttemptFeedbackResponse(
             overall_summary=feedback.overall_summary,
             mastery_score=feedback.mastery_score,
@@ -107,14 +106,12 @@ def submit_quiz(
     )
 
 
-# ИСТОРИЯ ПОПЫТОК 
 @router.get("/{quiz_id}/attempts", response_model=list[AttemptSummaryResponse])
 def my_attempts(
     quiz_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """История попыток пользователя по конкретному тесту."""
     quiz = db.query(Quiz).filter(Quiz.id == quiz_id).first()
     quiz_title = quiz.title if quiz else None
 
@@ -135,17 +132,13 @@ def my_attempts(
         for a in attempts
     ]
 
-#
+
 @router.get("/attempts/{attempt_id}", response_model=AttemptDetailResponse)
 def get_attempt_detail(
     attempt_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """
-    Полный разбор попытки (включая AI-feedback).
-    Если feedback ещё не был построен для этой попытки — строим его прямо сейчас.
-    """
     attempt = (
         db.query(QuizAttempt)
         .filter(QuizAttempt.id == attempt_id, QuizAttempt.user_id == current_user.id)
@@ -162,7 +155,6 @@ def get_attempt_detail(
         .first()
     )
     if not fb:
-        # для старых попыток, созданных до появления агента
         fb = run_feedback_agent(db, attempt)
 
     return AttemptDetailResponse(
