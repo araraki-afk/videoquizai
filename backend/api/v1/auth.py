@@ -12,11 +12,12 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 def register(body: RegisterRequest, db: Session=Depends(get_db)):
     if db.query(User).filter(User.email == body.email).first():
         raise HTTPException(status_code=400, detail="Email уже зарегистрирован")
+    role = UserRole.teacher if body.role == "teacher" else UserRole.student
     user = User(
         email=body.email,
         hashed_password=hash_password(body.password),
         full_name=body.full_name,
-        role = UserRole.student
+        role=role
     )
     db.add(user)
     db.commit()

@@ -7,6 +7,7 @@ import models.quiz
 import models.content
 import models.transcript
 import models.feedback
+import models.classroom
 
 Base.metadata.create_all(bind=engine)
 

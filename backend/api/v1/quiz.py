@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from core.database import get_db
 from core.dependencies import get_current_user
 from models.user import User
+from models.content import Content
 from models.quiz import Quiz, QuizAttempt
 from models.feedback import AttemptFeedback
 from schemas.quiz import (
@@ -32,6 +33,23 @@ def quizzes_by_content(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    # Проверяем доступ: владелец контента ИЛИ участник classroom с этим контентом
+    from models.classroom import ClassroomContent, ClassroomMember
+    content = db.query(Content).filter(Content.id == content_id).first()
+    if not content:
+        raise HTTPException(status_code=404, detail="Контент не найден")
+
+    is_owner = content.user_id == current_user.id
+    is_classroom_member = db.query(ClassroomMember).join(ClassroomContent,
+        ClassroomContent.classroom_id == ClassroomMember.classroom_id
+    ).filter(
+        ClassroomContent.content_id == content_id,
+        ClassroomMember.user_id == current_user.id,
+    ).first() is not None
+
+    if not is_owner and not is_classroom_member:
+        raise HTTPException(status_code=403, detail="Нет доступа")
+
     return (
         db.query(Quiz)
         .filter(Quiz.content_id == content_id, Quiz.is_validated == True)  # noqa
