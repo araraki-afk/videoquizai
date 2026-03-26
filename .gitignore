@@ -1,1 +1,10 @@
 .env
+.vscode/
+.DS_store
+*.log
+
+
+# Backend
+backend/.venv/
+backend/__pycache__/
+backend./env
