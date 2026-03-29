@@ -7,6 +7,8 @@ from tasks.celery_app import celery
 from core.database import SessionLocal
 from models.content import Content, ProccesingStatus
 from models.transcript import Transcript, Summary
+from core.gpt_client import ask_gpt_json
+
 
 @celery.task(bind = True, max_retries=2)
 def topics_agent(self, content_id: int) -> int:
@@ -17,7 +19,7 @@ def topics_agent(self, content_id: int) -> int:
         if not transcript:
             raise ValueError("Транскрипция не найдена")
         
-        topics = _extract_topics(transcript.text)
+        topics = _extract_topics_with_llm(transcript.text)
 
         #Заготовка для агента суммаризации
         existing = db.query(Summary).filter(Summary.content_id == content_id).first()
@@ -43,17 +45,20 @@ def topics_agent(self, content_id: int) -> int:
         db.close()
 
 
-def _extract_topics(text:str) -> list[str]:
-    sentences = [s.strip() for s in text.split(".") if len (s.strip()) > 20]
-    if not sentences:
-        return ["Основная тема"]
-    block_size = max(1, len(sentences) // 8)
-    topics = []
+def _extract_topics_with_llm(text:str) -> list[str]:
+    # обрезаем до 8000 символов
+    excerpt = text[:8000]
 
-    for i in range(0, len(sentences), block_size):
-        block = sentences[i:i + block_size]
-        if block:
-            topic = block[0][:60].strip()
-            if topic:
-                topics.append(topic)
-    return topics[:10]
+    result = ask_gpt_json(
+        system_prompt="""Ты — эксперт по анализу образовательного контента.
+Твоя задача — выделить основные темы из текста лекции или статьи.
+Верни JSON массив строк — названия тем. Максимум 8 тем.
+Темы должны быть конкретными и информативными (не "Введение", а "Основы нейронных сетей").
+Пример: ["Градиентный спуск", "Функции активации", "Переобучение и регуляризация"]""",
+        user_prompt=f"Выдели основные темы из этого текста:\n\n{excerpt}",
+        max_tokens=500
+    )
+
+    if isinstance(result, list):
+        return [str(t) for t in result[:8]]
+    return ["Основная тема"]

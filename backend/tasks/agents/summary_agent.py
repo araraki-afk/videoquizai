@@ -6,6 +6,7 @@ from tasks.celery_app import celery
 from core.database import SessionLocal
 from models.content import Content, ProccesingStatus
 from models.transcript import Transcript, Summary
+from core.gpt_client import ask_gpt
 
 @celery.task(bind=True, max_retries=2)
 def summary_agent(self, content_id: int) -> int:
@@ -17,7 +18,7 @@ def summary_agent(self, content_id: int) -> int:
         if not transcript:
             raise ValueError(f"Transcript not found for content_id {content_id}")
         
-        summary_text = _generate_summary(transcript.text)
+        summary_text = _generate_summary_wit_llm(transcript.text)
 
         summary = db.query(Summary).filter(
             Summary.content_id == content_id
@@ -41,10 +42,29 @@ def summary_agent(self, content_id: int) -> int:
         db.close()
 
 
-def _generate_summary(text: str) -> str:
-    sentences = [s.strip() for s in text.replace("\n", "").split(".") if len(s.strip()) > 30]
-    if not sentences:
-        return text[:500]
-    
-    selected = sentences[::3][:20] #every 3rd sentence
-    return ". ".join(selected) + "."
+def _generate_summary_wit_llm(text: str) -> str:
+    # for long texts take sample
+    if len(text) > 12000:
+        chunk_size = 4000
+        parts = [text[:chunk_size], text[len(text)//2:len(text)//2+chunk_size], text[-chunk_size:]]
+        excerpt = "\n\n[...]\n\n".join(parts)
+    else:
+        excerpt = text
+    return ask_gpt(
+        system_prompt="""Ты — преподаватель, составляющий конспект лекции.
+Создай структурированный конспект на русском языке.
+
+Формат конспекта:
+## [Название темы]
+- Ключевая идея 1
+- Ключевая идея 2
+
+Требования:
+- Выдели 3-5 основных тем
+- Под каждой темой 3-5 ключевых пунктов
+- Пиши кратко и по существу
+- Сохраняй важные термины и определения
+- Не пиши ничего лишнего — только конспект""",
+        user_prompt=f"Составь конспект по этому тексту:\n\n{excerpt}",
+        max_tokens=2000
+    )

@@ -9,7 +9,7 @@ from core.config import settings
 from models.content import Content, ProccesingStatus, ContentType
 from models.transcript import Transcript
 
-@celery.task(bind=True, max_tries=3, default_retry_delay=30)
+@celery.task(bind=True, max_retries=3, default_retry_delay=30)
 def transcription_agent(self, content_id: int) -> int:
     db = SessionLocal()
     try:
@@ -51,4 +51,11 @@ def _call_whisper(content: Content) -> str:
         response.raise_for_status()
         return response.json()['text']
     except httpx.RequestError as e:
-        raise RuntimeError(f"Ошибка при вызове сервиса транскрипции: {str(e)}")
+        detail = ""
+        try:
+            detail = e.response.json().get("detail","")
+        except Exception:
+            pass
+        raise RuntimeError(f"Whisper вернул {e.response.status_code}: {detail}")
+    except httpx.RequestError as e:
+        raise RuntimeError(f"Ошибка соединения с Whisper: {str(e)}")
