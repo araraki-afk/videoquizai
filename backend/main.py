@@ -2,14 +2,16 @@ from fastapi import FastAPI
 from core.database import Base, engine
 from api.v1.router import router
 from fastapi.middleware.cors import CORSMiddleware
-import models.user 
+import models.user
 import models.quiz
 import models.content
 import models.transcript
+import models.feedback
+import models.classroom
 
 Base.metadata.create_all(bind=engine)
 
-app = FastAPI(title="VideoQuiz API", version = "0.1.1")
+app = FastAPI(title="VideoQuiz API", version="0.3.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -19,6 +21,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 app.include_router(router)
+
 
 @app.get("/health")
 def health():

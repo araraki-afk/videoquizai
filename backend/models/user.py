@@ -20,3 +20,5 @@ class User(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     contents = relationship("Content", back_populates="user")
+    owned_classrooms = relationship("Classroom", back_populates="owner")
+    classroom_memberships = relationship("ClassroomMember", back_populates="user")

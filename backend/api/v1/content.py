@@ -17,6 +17,29 @@ from schemas.content import (
 router = APIRouter(prefix="/content", tags=["content"])
 
 
+def _check_content_access(content_id: int, user: User, db: Session) -> Content:
+    """Проверяем доступ: владелец ИЛИ участник classroom."""
+    content = db.query(Content).filter(Content.id == content_id).first()
+    if not content:
+        raise HTTPException(status_code=404, detail="Не найдено")
+
+    if content.user_id == user.id:
+        return content
+
+    from models.classroom import ClassroomContent, ClassroomMember
+    is_member = db.query(ClassroomMember).join(ClassroomContent,
+        ClassroomContent.classroom_id == ClassroomMember.classroom_id
+    ).filter(
+        ClassroomContent.content_id == content_id,
+        ClassroomMember.user_id == user.id,
+    ).first()
+
+    if is_member:
+        return content
+
+    raise HTTPException(status_code=404, detail="Не найдено")
+
+
 def _launch_pipeline(content_id: int) -> str | None:
     """Запускает оркестратор. Если celery не поднят, остальное не падает."""
     try:
@@ -118,12 +141,7 @@ def get_status(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    content = db.query(Content).filter(
-        Content.id == content_id,
-        Content.user_id == current_user.id
-    ).first()
-    if not content:
-        raise HTTPException(status_code=404, detail="Не найдено")
+    content = _check_content_access(content_id, current_user, db)
     return content
 
 
@@ -133,12 +151,7 @@ def get_transcript(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    content = db.query(Content).filter(
-        Content.id == content_id,
-        Content.user_id == current_user.id
-    ).first()
-    if not content:
-        raise HTTPException(status_code=404, detail="Не найдено")
+    content = _check_content_access(content_id, current_user, db)
     if not content.transcript:   
         raise HTTPException(status_code=202, detail="Транскрипция ещё не готова")
     return TranscriptResponse(content_id=content_id, text=content.transcript.text)
@@ -150,12 +163,7 @@ def get_summary(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    content = db.query(Content).filter(
-        Content.id == content_id,
-        Content.user_id == current_user.id
-    ).first()
-    if not content:
-        raise HTTPException(status_code=404, detail="Не найдено")
+    content = _check_content_access(content_id, current_user, db)
     if not content.summary or not content.summary.text:
         raise HTTPException(status_code=202, detail="Конспект ещё не готов")
     return SummaryResponse(content_id=content_id, text=content.summary.text)
