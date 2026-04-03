@@ -1,12 +1,13 @@
 import { useState, useEffect } from 'react'
-import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom'
+import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate, useLocation, Link } from 'react-router-dom'
 import Login from './pages/Login'
 import Register from './pages/Register'
 import StudentDashboard from './pages/StudentDashboard'
 import TeacherDashboard from './pages/TeacherDashboard'
+import CreateTest from './pages/CreateTest'
 import TestTaking from './pages/TestTaking'
 import TestResults from './pages/TestResults'
-import Groups from './pages/Groups'
+import Classroom from './pages/Classroom'
 import './App.css'
 
 function App() {
@@ -52,9 +53,10 @@ function App() {
               element={currentUser.role === 'teacher' ? <Navigate to="/teacher" /> : <StudentDashboard user={currentUser} />} 
             />
             <Route path="/teacher" element={<TeacherDashboard user={currentUser} />} />
+            <Route path="/create-test" element={<CreateTest />} />
             <Route path="/test/:id" element={<TestTaking />} />
             <Route path="/results/:id" element={<TestResults />} />
-            <Route path="/groups" element={<Groups />} />
+            <Route path="/classroom" element={<Classroom />} />
             <Route path="*" element={<Navigate to={currentUser.role === 'teacher' ? '/teacher' : '/'} />} />
           </Routes>
         </main>
@@ -73,28 +75,28 @@ function Sidebar({ user, onLogout }) {
       <nav className="sidebar-nav">
         <ul className="nav-items">
           <li>
-            <a href={user.role === 'teacher' ? '/teacher' : '/'} className="nav-link">
+            <Link to={user.role === 'teacher' ? '/teacher' : '/'} className="nav-link">
               <span className="icon">📚</span>
-              Dashboard
-            </a>
+              Главная
+            </Link>
           </li>
           <li>
-            <a href="/groups" className="nav-link">
-              <span className="icon">👥</span>
-              Groups
-            </a>
+            <Link to="/classroom" className="nav-link">
+              <span className="icon">🏫</span>
+              Группы
+            </Link>
           </li>
           <li>
-            <a href="/" className="nav-link">
-              <span className="icon">📝</span>
-              Tests
-            </a>
+            <Link to="/create-test" className="nav-link">
+              <span className="icon">➕</span>
+              Создать тест
+            </Link>
           </li>
           <li>
-            <a href="/" className="nav-link">
+            <Link to="/results" className="nav-link">
               <span className="icon">📊</span>
-              Results
-            </a>
+              Результаты
+            </Link>
           </li>
         </ul>
       </nav>
@@ -108,7 +110,7 @@ function Sidebar({ user, onLogout }) {
           </div>
         </div>
         <button className="btn-logout" onClick={onLogout}>
-          Logout
+          Выйти
         </button>
       </div>
     </aside>

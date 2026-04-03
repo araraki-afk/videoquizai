@@ -1,3 +1,5 @@
+Register.jsx
+
 import { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import '../styles/auth.css'
@@ -24,6 +26,7 @@ export default function Register() {
     setError('')
     setIsLoading(true)
 
+    // Базовая валидация
     if (!name || !surname || !email || !password || !confirmPassword) {
       setError('Please fill in all fields')
       setIsLoading(false)
@@ -43,29 +46,63 @@ export default function Register() {
     }
 
     try {
-      // Simulate API call
-      setTimeout(() => {
-        const userData = {
-          name,
-          surname,
-          email,
-          password,
-          role
-        }
-        localStorage.setItem('user', JSON.stringify(userData))
-        localStorage.setItem('isAuthenticated', 'true')
-        localStorage.setItem('currentUser', JSON.stringify({
-          email,
-          name,
-          surname,
-          role
-        }))
-        // Redirect to appropriate dashboard based on role
-        window.location.href = role === 'teacher' ? '/teacher' : '/'
-        setIsLoading(false)
-      }, 500)
+      const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+      
+      // 1. Склеиваем имя и фамилию для бэкенда (так как бэкенд ожидает full_name)
+      const fullName = `${name} ${surname}`.trim();
+
+      // ШАГ 1: Регистрируем пользователя
+      const registerResponse = await fetch(`${API_URL}/api/v1/auth/register`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: email,
+          password: password,
+          full_name: fullName,
+          role: role // 'student' или 'teacher'
+        })
+      });
+
+      if (!registerResponse.ok) {
+        const errorData = await registerResponse.json();
+        // Перехватываем ошибку FastAPI (например: "Email уже зарегистрирован")
+        throw new Error(errorData.detail || 'Ошибка при регистрации');
+      }
+
+      const userData = await registerResponse.json(); // Получаем UserResponse
+
+      // ШАГ 2: Автоматически логиним пользователя, чтобы получить access_token
+      const loginResponse = await fetch(`${API_URL}/api/v1/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password })
+      });
+
+      if (!loginResponse.ok) {
+        // Если логин почему-то не прошел (что маловероятно после успешной регистрации), отправляем на страницу входа
+        navigate('/login');
+        return;
+      }
+
+      const tokenData = await loginResponse.json();
+      
+      // ШАГ 3: Сохраняем сессию в браузере
+      localStorage.setItem('token', tokenData.access_token);
+      localStorage.setItem('isAuthenticated', 'true');
+      
+      // Сохраняем профиль для App.jsx
+      localStorage.setItem('currentUser', JSON.stringify({
+        email: userData.email,
+        name: userData.full_name, // App.jsx ожидает поле name
+        role: userData.role
+      }));
+
+      // ШАГ 4: Редирект на нужный дашборд (полная перезагрузка для обновления роутов)
+      window.location.href = userData.role === 'teacher' ? '/teacher' : '/';
+
     } catch (err) {
-      setError('Registration failed. Please try again.')
+      setError(err.message || 'Registration failed. Please try again.');
+    } finally {
       setIsLoading(false)
     }
   }
@@ -88,7 +125,7 @@ export default function Register() {
           <div className="role-selector">
             <div 
               className={`role-option ${role === 'student' ? 'active' : ''}`}
-              onClick={() => handleRoleSelect('student')}
+              onClick={() =>handleRoleSelect('student')}
             >
               <div className="role-icon">👨‍🎓</div>
               <h3>Student</h3>

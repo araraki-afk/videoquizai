@@ -1,3 +1,5 @@
+Login.jsx
+
 import { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import '../styles/auth.css'
@@ -21,26 +23,56 @@ export default function Login() {
     }
 
     try {
-      // Simulate API call
-      setTimeout(() => {
-        const user = JSON.parse(localStorage.getItem('user'))
-        if (user && user.email === email && user.password === password) {
-          localStorage.setItem('isAuthenticated', 'true')
-          localStorage.setItem('currentUser', JSON.stringify({
-            email: user.email,
-            name: user.name,
-            surname: user.surname,
-            role: user.role
-          }))
-          // Redirect to appropriate dashboard based on role
-          window.location.href = user.role === 'teacher' ? '/teacher' : '/'
-        } else {
-          setError('Invalid email or password')
+      const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+
+      // ШАГ 1: Логин (отправляем JSON, так как бэкенд ждет LoginRequest)
+      const loginResponse = await fetch(`${API_URL}/api/v1/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password })
+      });
+
+      if (!loginResponse.ok) {
+        const errorData = await loginResponse.json();
+        // Берем detail из HTTPException бэкенда ("Неверные учетные данные")
+        throw new Error(errorData.detail || 'Ошибка при входе'); 
+      }
+
+      const tokenData = await loginResponse.json(); // Получаем {"access_token": "..."}
+      
+      // Сохраняем токен для будущих запросов (создание тестов и т.д.)
+      localStorage.setItem('token', tokenData.access_token);
+
+      // ШАГ 2: Получаем профиль пользователя, чтобы узнать его роль
+      const userResponse = await fetch(`${API_URL}/api/v1/auth/me`, {
+        method: 'GET',
+        headers: { 
+          'Authorization': `Bearer ${tokenData.access_token}` 
         }
-        setIsLoading(false)
-      }, 500)
+      });
+
+      if (!userResponse.ok) {
+        throw new Error('Не удалось загрузить профиль пользователя');
+      }
+
+      const userData = await userResponse.json(); // Получаем UserResponse
+
+      // ШАГ 3: Сохраняем данные для App.jsx
+      localStorage.setItem('isAuthenticated', 'true');
+      
+      // Маппинг данных: бэкенд отдает full_name, а фронтенд ожидал name
+      localStorage.setItem('currentUser', JSON.stringify({
+        email: userData.email,
+        name: userData.full_name, // Берем из поля, определенного в auth.py
+        role: userData.role
+      }));
+
+      // ШАГ 4: Редирект в зависимости от роли
+      window.location.href = userData.role === 'teacher' ? '/teacher' : '/';
+
     } catch (err) {
-      setError('Login failed. Please try again.')
+      setError(err.message || 'Login failed. Please try again.');
+    } finally {
       setIsLoading(false)
     }
   }
@@ -94,7 +126,7 @@ export default function Login() {
         <div className="auth-divider">or</div>
 
         <div className="auth-footer">
-          <p>Don't have an account? <Link to="/register" className="auth-link">Sign up</Link></p>
+          <p>Don't have an account?<Link to="/register" className="auth-link">Sign up</Link></p>
         </div>
       </div>
     </div>
