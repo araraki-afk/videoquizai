@@ -1,0 +1,27 @@
+FROM python:3.11-slim
+
+WORKDIR /backend
+
+# Системные зависимости
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    gcc \
+    libpq-dev \
+    ffmpeg \
+    git \
+    && rm -rf /var/lib/apt/lists/*
+
+# Сначала копируем только requirements — слой закешируется
+COPY requirements.txt .
+RUN pip install --upgrade pip setuptools wheel && \
+    pip install --no-cache-dir -r requirements.txt
+
+# Копируем весь исходный код
+COPY . .
+
+# Папки для медиафайлов
+RUN mkdir -p /app/media/uploads /app/media/audio
+
+EXPOSE 8000
+
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
