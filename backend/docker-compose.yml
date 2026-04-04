@@ -38,7 +38,6 @@ services:
     build:
       context: .     # Путь к папке с бэкендом
       dockerfile: Dockerfile
-      target: runtime
     container_name: videoquiz_api
     restart: unless-stopped
     env_file:
@@ -65,7 +64,6 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-      target: runtime
     container_name: videoquiz_worker
     restart: unless-stopped
     env_file:
@@ -89,7 +87,6 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-      target: runtime
     container_name: videoquiz_flower
     restart: unless-stopped
     env_file:
