@@ -29,6 +29,9 @@ class Content(Base):
     error_message = Column(Text, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
+    quiz_difficulty = Column(String, default="medium")
+    question_count = Column(Integer, default=10)
+
     user = relationship("User", back_populates = "contents")
     transcript = relationship("Transcript", back_populates="content", uselist=False)
     summary = relationship("Summary", back_populates="content", uselist=False)

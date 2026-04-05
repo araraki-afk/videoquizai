@@ -56,6 +56,18 @@ def quizzes_by_content(
         .all()
     )
 
+@router.get("/", response_model=list[QuizResponse])
+def list_my_quizzes(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    return (
+        db.query(Quiz)
+        .join(Content, Quiz.content_id == Content.id)
+        .filter(Content.user_id == current_user.id, Quiz.is_validated == True)
+        .all()
+    )
+
 
 @router.get("/{quiz_id}", response_model=QuizResponse)
 def get_quiz(

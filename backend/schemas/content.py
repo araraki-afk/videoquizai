@@ -3,12 +3,16 @@ from models.content import ContentType, ProccesingStatus
 
 class ContentFromURL(BaseModel):
     url: str
-    title: str
+    title: str | None = None
+    difficulty: str = "medium" #easy / medium / hard
+    question_count: int = "10"
 
 
 class ContentFromText(BaseModel):
     text: str
     title: str | None = None
+    difficulty: str = "medium" #easy / medium / hard
+    question_count: int = "10"
 
 class ContentResponse(BaseModel):
     id: int

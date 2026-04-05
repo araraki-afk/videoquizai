@@ -1,6 +1,6 @@
 import os
 import shutil
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
 from sqlalchemy.orm import Session
 from core.database import get_db
 from core.dependencies import get_current_user
@@ -50,6 +50,14 @@ def _launch_pipeline(content_id: int) -> str | None:
         return None
 
 
+def _clamp_question_count(n: int) -> int:
+    return max(5, min(20, n))
+
+def _validate_difficulty(d: str) -> str:
+    if d not in ("easy", "medium", "hard"):
+        return "medium"
+    return d
+
 @router.post("/url", response_model=ContentResponse)
 def submit_url(
     body: ContentFromURL,
@@ -61,7 +69,9 @@ def submit_url(
         title=body.title or body.url[:80],
         content_type=ContentType.youtube_url,
         source=body.url,
-        status=ProccesingStatus.pending
+        status=ProccesingStatus.pending,
+        quiz_difficulty=_validate_difficulty(body.difficulty),
+        question_count=_clamp_question_count(body.question_count),
     )
     db.add(content)
     db.commit()
@@ -85,7 +95,9 @@ def submit_text(
         content_type=ContentType.raw_text,
         source=body.text[:1000],
         raw_text=body.text,
-        status=ProccesingStatus.pending
+        status=ProccesingStatus.pending,
+        quiz_difficulty=_validate_difficulty(body.difficulty),
+        question_count=_clamp_question_count(body.question_count),
     )
     db.add(content)
     db.commit()
@@ -101,6 +113,9 @@ def submit_text(
 def upload_file(
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
+    difficulty: str = Form("medium"),
+    question_count: int = Form(10),
+    title: str = Form(None),
     current_user: User = Depends(get_current_user)
 ):
     upload_dir = os.path.join(settings.MEDIA_DIR, "uploads")
@@ -113,7 +128,9 @@ def upload_file(
         title=file.filename,
         content_type=ContentType.uploaded_video,
         source=file_path,
-        status=ProccesingStatus.pending
+        status=ProccesingStatus.pending,
+        quiz_difficulty=_validate_difficulty(difficulty),
+        question_count=_clamp_question_count(question_count),
     )
     db.add(content)
     db.commit()

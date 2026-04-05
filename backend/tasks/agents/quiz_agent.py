@@ -29,7 +29,11 @@ def quiz_agent(self, content_id: int) -> int:
             raise ValueError("Транскрипция не найдена")
 
         topics = json.loads(summary.topics) if summary and summary.topics else []
-        questions_data = _generate_questions_with_llm(transcript.text, topics)
+
+        difficulty = getattr(content, "quiz_difficulty", "medium") or "medium"
+        question_count = getattr(content, "question_count", 10) or 0
+
+        questions_data = _generate_questions_with_llm(transcript.text, topics, difficulty=difficulty, question_count=question_count)
 
         quiz = Quiz(
             content_id=content_id, 
@@ -67,7 +71,7 @@ def quiz_agent(self, content_id: int) -> int:
         db.close()
 
 
-def _generate_questions_with_llm(text: str, topics: list[str], difficulty: str = "medium") -> list[dict]:
+def _generate_questions_with_llm(text: str, topics: list[str], difficulty: str = "medium", question_count: int = 10) -> list[dict]:
     excerpt = text[:10000]
     topics_str = ", ".join(topics) if topics else "основные темы материала"
 
@@ -92,7 +96,7 @@ def _generate_questions_with_llm(text: str, topics: list[str], difficulty: str =
 
     result = ask_gpt_json(
         system_prompt=f"""Ты — преподаватель, составляющий тест по учебному материалу.
-Создай 10-12 вопросов разных типов.
+Создай ровно {question_count} вопросов разных типов.
 
 {diff_text}
 
@@ -116,7 +120,7 @@ def _generate_questions_with_llm(text: str, topics: list[str], difficulty: str =
         return []  
 
     questions = []
-    for q in result[:12]:
+    for q in result[:question_count]:
         if not q.get("text") or not q.get("answer"):
             continue
         questions.append({

@@ -1,254 +1,173 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import '../styles/pages.css'
 
 export default function TeacherDashboard({ user }) {
-  const [classes, setClasses] = useState([])
-  const [showCreateModal, setShowCreateModal] = useState(false)
-  const [className, setClassName] = useState('')
-  const [subject, setSubject] = useState('')
-  const [studentEmails, setStudentEmails] = useState([''])
+  const [content, setContent] = useState([])
+  const [classrooms, setClassrooms] = useState([])
+  const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState('')
 
-  const recentTests = [
-    { id: 1, name: 'Math Final Exam', class: 'Class 10A', students: 32, date: '2 hours ago' },
-    { id: 2, name: 'English Quiz', class: 'Class 10B', students: 28, date: 'Yesterday' },
-    { id: 3, name: 'Science Project', class: 'Class 9A', students: 30, date: '3 days ago' }
-  ]
+  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
+  const token = localStorage.getItem('token')
+  const headers = { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }
 
-  const handleAddStudentEmail = () => {
-    setStudentEmails([...studentEmails, ''])
-  }
+  useEffect(() => {
+    const fetchData = async () => {
+      setIsLoading(true)
+      try {
+        const [contentRes, classroomRes] = await Promise.all([
+          fetch(`${API_URL}/api/v1/content/my`, { headers }),
+          fetch(`${API_URL}/api/v1/classroom/my`, { headers }),
+        ])
 
-  const handleRemoveStudentEmail = (index) => {
-    setStudentEmails(studentEmails.filter((_, i) => i !== index))
-  }
-
-  const handleStudentEmailChange = (index, value) => {
-    const newEmails = [...studentEmails]
-    newEmails[index] = value
-    setStudentEmails(newEmails)
-  }
-
-  const handleCreateClass = (e) => {
-    e.preventDefault()
-    setError('')
-
-    if (!className.trim()) {
-      setError('Class name is required')
-      return
-    }
-
-    if (!subject.trim()) {
-      setError('Subject is required')
-      return
-    }
-
-    const validEmails = studentEmails.filter(email => email.trim() !== '')
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-
-    for (const email of validEmails) {
-      if (!emailRegex.test(email)) {
-        setError(`Invalid email format: ${email}`)
-        return
+        if (contentRes.ok) {
+          const data = await contentRes.json()
+          setContent(data)
+        }
+        if (classroomRes.ok) {
+          const data = await classroomRes.json()
+          setClassrooms(data)
+        }
+      } catch (err) {
+        setError('Ошибка при загрузке данных')
+      } finally {
+        setIsLoading(false)
       }
     }
+    fetchData()
+  }, [])
 
-    const newClass = {
-      id: classes.length + 1,
-      name: className,
-      subject: subject,
-      students: validEmails.length,
-      studentList: validEmails,
-      tests: 0,
-      avgScore: 0,
-      createdAt: new Date().toLocaleDateString()
-    }
+  const totalStudents = classrooms.reduce((sum, c) => sum + (c.member_count || 0), 0)
+  const doneContent = content.filter(c => c.status === 'done').length
+  const processingContent = content.filter(c => c.status === 'proccesing' || c.status === 'pending').length
 
-    setClasses([...classes, newClass])
-    
-    // Reset form
-    setClassName('')
-    setSubject('')
-    setStudentEmails([''])
-    setShowCreateModal(false)
+  if (isLoading) {
+    return (
+      <div className="page-container" style={{ display: 'flex', justifyContent: 'center', marginTop: '4rem' }}>
+        <div className="loading-spinner" style={{ borderColor: '#4f46e5', borderTopColor: 'transparent', width: '3rem', height: '3rem' }}></div>
+      </div>
+    )
   }
-
-  const handleCloseModal = () => {
-    setShowCreateModal(false)
-    setClassName('')
-    setSubject('')
-    setStudentEmails([''])
-    setError('')
-  }
-
-  const totalStudents = classes.reduce((sum, cls) => sum + cls.students, 0)
 
   return (
-    <div className="dashboard">
-      <header className="dashboard-header">
+    <div className="dashboard page-container">
+      <header className="dashboard-header" style={{ marginBottom: '2rem' }}>
         <div>
-          <h1>Welcome Back, {user?.name}! 👨‍🏫</h1>
-          <p>Manage your classes and track student progress</p>
+          <h1>Добро пожаловать, {user?.name || 'Преподаватель'}! 👨‍🏫</h1>
+          <p className="subtitle" style={{ color: 'rgba(255,255,255,0.9)' }}>Управляйте материалами и группами</p>
         </div>
         <div className="header-stats">
           <div className="stat">
-            <span className="stat-value">{classes.length}</span>
-            <span className="stat-label">Classes</span>
+            <span className="stat-value">{classrooms.length}</span>
+            <span className="stat-label">Групп</span>
           </div>
           <div className="stat">
             <span className="stat-value">{totalStudents}</span>
-            <span className="stat-label">Total Students</span>
+            <span className="stat-label">Студентов</span>
           </div>
           <div className="stat">
-            <span className="stat-value">{classes.reduce((sum, cls) => sum + cls.tests, 0)}</span>
-            <span className="stat-label">Active Tests</span>
+            <span className="stat-value">{doneContent}</span>
+            <span className="stat-label">Материалов</span>
           </div>
         </div>
       </header>
 
-      <section className="classes-section">
+      {error && (
+        <div style={{ padding: '1rem', background: '#fef2f2', color: '#ef4444', borderRadius: '12px', marginBottom: '1.5rem' }}>{error}</div>
+      )}
+
+      {/* Quick actions */}
+      <div style={{ display: 'flex', gap: '1rem', marginBottom: '2rem', flexWrap: 'wrap' }}>
+        <Link to="/create-test" className="btn-generate" style={{ textDecoration: 'none', width: 'auto', padding: '0.8rem 1.5rem', display: 'inline-flex' }}>
+          ➕ Создать тест
+        </Link>
+        <Link to="/classroom" className="btn-nav btn-back" style={{ textDecoration: 'none', display: 'inline-flex', alignItems: 'center' }}>
+          🏫 Управление группами
+        </Link>
+      </div>
+
+      {/* Content / Materials */}
+      <section style={{ marginBottom: '2.5rem' }}>
         <div className="section-header">
-          <h2>📚 Your Classes</h2>
-          <button className="btn btn-primary btn-sm" onClick={() => setShowCreateModal(true)}>Create New Class</button>
+          <h2 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>📚 Ваши материалы</h2>
         </div>
 
-        {classes.length === 0 ? (
-          <div className="empty-state">
-            <p>No classes yet. Create your first class to get started!</p>
+        {content.length === 0 ? (
+          <div style={{ padding: '2rem', background: '#f8fafc', borderRadius: '12px', color: '#64748b', textAlign: 'center' }}>
+            Вы ещё не загрузили ни одного материала. <Link to="/create-test" style={{ color: '#4f46e5' }}>Создайте первый тест →</Link>
           </div>
         ) : (
-          <div className="classes-grid">
-            {classes.map(cls => (
-              <ClassCard key={cls.id} cls={cls} />
+          <div className="tests-grid">
+            {content.map(item => (
+              <ContentCard key={item.id} item={item} />
             ))}
           </div>
         )}
       </section>
 
-      {classes.length > 0 && (
-        <section className="recent-tests">
-          <div className="section-header">
-            <h2>📝 Recent Tests</h2>
-            <Link to="#" className="view-all-link">Create New Test</Link>
-          </div>
+      {/* Classrooms */}
+      <section>
+        <div className="section-header">
+          <h2 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>🏫 Ваши группы</h2>
+          <Link to="/classroom" className="view-all-link">Все группы →</Link>
+        </div>
 
-          <div className="tests-list">
-            {recentTests.map(test => (
-              <div key={test.id} className="test-item">
-                <div className="test-info">
-                  <h4>{test.name}</h4>
-                  <p className="test-class">{test.class} • {test.students} students</p>
+        {classrooms.length === 0 ? (
+          <div style={{ padding: '2rem', background: '#f8fafc', borderRadius: '12px', color: '#64748b', textAlign: 'center' }}>
+            Нет созданных групп. <Link to="/classroom" style={{ color: '#4f46e5' }}>Создать группу →</Link>
+          </div>
+        ) : (
+          <div className="classes-grid">
+            {classrooms.map(cls => (
+              <div key={cls.id} className="content-card" style={{ padding: '1.5rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.8rem' }}>
+                  <h3 style={{ margin: 0, fontSize: '1.1rem', color: '#1e293b' }}>{cls.name}</h3>
+                  <span style={{ background: '#e0e7ff', color: '#4338ca', padding: '0.2rem 0.6rem', borderRadius: '20px', fontSize: '0.8rem', fontWeight: 'bold' }}>
+                    {cls.member_count || 0} уч.
+                  </span>
                 </div>
-                <span className="test-date">{test.date}</span>
-                <button className="btn btn-secondary btn-sm">Manage</button>
+                {cls.description && (
+                  <p style={{ color: '#64748b', fontSize: '0.9rem', margin: '0 0 1rem 0' }}>{cls.description}</p>
+                )}
+                <div style={{ color: '#94a3b8', fontSize: '0.85rem' }}>
+                  Код: <strong style={{ color: '#475569' }}>{cls.invite_code}</strong>
+                </div>
               </div>
             ))}
           </div>
-        </section>
-      )}
-
-      {showCreateModal && (
-        <div className="modal-overlay" onClick={handleCloseModal}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h2>Create New Class</h2>
-              <button className="close-button" onClick={handleCloseModal}>✕</button>
-            </div>
-
-            <form onSubmit={handleCreateClass} className="create-class-form">
-              {error && <div className="error-message">{error}</div>}
-
-              <div className="form-group">
-                <label htmlFor="className">Class Name *</label>
-                <input
-                  type="text"
-                  id="className"
-                  value={className}
-                  onChange={(e) => setClassName(e.target.value)}
-                  placeholder="e.g., Class 10A"
-                  required
-                />
-              </div>
-
-              <div className="form-group">
-                <label htmlFor="subject">Subject *</label>
-                <input
-                  type="text"
-                  id="subject"
-                  value={subject}
-                  onChange={(e) => setSubject(e.target.value)}
-                  placeholder="e.g., Mathematics"
-                  required
-                />
-              </div>
-
-              <div className="form-group students-section">
-                <label>Add Students by Email</label>
-                <div className="students-list">
-                  {studentEmails.map((email, index) => (
-                    <div key={index} className="student-email-input">
-                      <input
-                        type="email"
-                        value={email}
-                        onChange={(e) => handleStudentEmailChange(index, e.target.value)}
-                        placeholder="student@example.com"
-                      />
-                      {studentEmails.length > 1 && (
-                        <button
-                          type="button"
-                          className="btn btn-remove"
-                          onClick={() => handleRemoveStudentEmail(index)}
-                        >
-                          ✕
-                        </button>
-                      )}
-                    </div>
-                  ))}
-                </div>
-                <button
-                  type="button"
-                  className="btn btn-secondary btn-sm add-student-btn"
-                  onClick={handleAddStudentEmail}
-                >
-                  + Add Another Student
-                </button>
-              </div>
-
-              <div className="modal-actions">
-                <button type="button" className="btn btn-outline" onClick={handleCloseModal}>Cancel</button>
-                <button type="submit" className="btn btn-primary">Create Class</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+        )}
+      </section>
     </div>
   )
 }
 
-function ClassCard({ cls }) {
+
+function ContentCard({ item }) {
+  const statusMap = {
+    pending: { label: 'В очереди', color: '#f59e0b', bg: '#fffbeb' },
+    proccesing: { label: 'Обработка...', color: '#3b82f6', bg: '#eff6ff' },
+    done: { label: 'Готово', color: '#10b981', bg: '#ecfdf5' },
+    failed: { label: 'Ошибка', color: '#ef4444', bg: '#fef2f2' },
+  }
+  const typeMap = {
+    youtube_url: '🎥 YouTube',
+    raw_text: '📝 Текст',
+    uploaded_video: '📁 Файл',
+  }
+
+  const st = statusMap[item.status] || statusMap.pending
+
   return (
-    <div className="class-card">
-      <div className="class-header">
-        <h3>{cls.name}</h3>
-        <span className="class-badge">{cls.subject}</span>
+    <div className="test-card content-card" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1rem' }}>
+        <h3 style={{ margin: 0, fontSize: '1.05rem', color: '#1e293b', flex: 1 }}>{item.title}</h3>
+        <span style={{ fontSize: '0.75rem', padding: '0.2rem 0.6rem', borderRadius: '20px', background: st.bg, color: st.color, fontWeight: '600', whiteSpace: 'nowrap', marginLeft: '0.5rem' }}>
+          {st.label}
+        </span>
       </div>
-
-      <div className="class-stats">
-        <div className="class-stat">
-          <span className="label">Students</span>
-          <span className="value">{cls.students}</span>
-        </div>
-        <div className="class-stat">
-          <span className="label">Tests</span>
-          <span className="value">{cls.tests}</span>
-        </div>
-      </div>
-
-      <div className="class-actions">
-        <button className="btn btn-secondary btn-sm">View Details</button>
-        <button className="btn btn-outline btn-sm">Edit Class</button>
+      <div style={{ color: '#94a3b8', fontSize: '0.85rem', marginBottom: '1rem' }}>
+        {typeMap[item.content_type] || item.content_type}
       </div>
     </div>
   )
