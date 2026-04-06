@@ -19,6 +19,10 @@ class ClassroomAssignContent(BaseModel):
     quiz_difficulty: str = "medium"  # easy / medium / hard
 
 
+class ClassroomJoinRequest(BaseModel):
+    invite_code: str
+
+
 # ── Responses ────────────────────────────────────
 
 class ClassroomMemberResponse(BaseModel):

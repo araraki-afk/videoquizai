@@ -2,6 +2,7 @@
 API для Classroom:
 - Преподаватель создает группу, добавляет студентов по email, назначает материалы
 - Студент видит свои группы и назначенные материалы
+- Студент присоединяется по инвайт-коду
 - Аналитика группы для преподавателя
 """
 import secrets
@@ -19,6 +20,7 @@ from models.quiz import Quiz, QuizAttempt, Question
 from models.feedback import AttemptFeedback
 from schemas.classroom import (
     ClassroomCreate, ClassroomAddMember, ClassroomAssignContent,
+    ClassroomJoinRequest,
     ClassroomResponse, ClassroomDetailResponse,
     ClassroomMemberResponse, ClassroomContentResponse,
     ClassroomAnalyticsResponse, StudentAttemptInfo, TopicWeakness,
@@ -54,7 +56,7 @@ def _classroom_response(cr: Classroom, db: Session) -> ClassroomResponse:
 
 
 # ══════════════════════════════════════════════════════════
-#  TEACHER ENDPOINTS
+#  COMMON ENDPOINTS
 # ══════════════════════════════════════════════════════════
 
 @router.post("/create", response_model=ClassroomResponse)
@@ -71,8 +73,6 @@ def create_classroom(
     )
     db.add(cr)
     db.flush()
-
-    # Преподаватель — тоже member (role=teacher)
     db.add(ClassroomMember(
         classroom_id=cr.id, user_id=teacher.id, role=MemberRole.teacher,
     ))
@@ -81,12 +81,39 @@ def create_classroom(
     return _classroom_response(cr, db)
 
 
+@router.post("/join")
+def join_classroom(
+    body: ClassroomJoinRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Студент присоединяется к группе по инвайт-коду."""
+    cr = db.query(Classroom).filter(Classroom.invite_code == body.invite_code).first()
+    if not cr:
+        raise HTTPException(status_code=404, detail="Группа с таким кодом не найдена")
+
+    exists = db.query(ClassroomMember).filter(
+        ClassroomMember.classroom_id == cr.id,
+        ClassroomMember.user_id == current_user.id,
+    ).first()
+    if exists:
+        raise HTTPException(status_code=400, detail="Вы уже состоите в этой группе")
+
+    m = ClassroomMember(
+        classroom_id=cr.id,
+        user_id=current_user.id,
+        role=MemberRole.student,
+    )
+    db.add(m)
+    db.commit()
+    return {"detail": "Вы присоединились к группе", "classroom_name": cr.name, "classroom_id": cr.id}
+
+
 @router.get("/my", response_model=list[ClassroomResponse])
 def my_classrooms(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Все группы пользователя (и как владелец, и как участник)."""
     memberships = (
         db.query(ClassroomMember)
         .filter(ClassroomMember.user_id == current_user.id)
@@ -111,8 +138,6 @@ def get_classroom(
     current_user: User = Depends(get_current_user),
 ):
     cr = _get_classroom_or_404(classroom_id, db)
-
-    # Проверяем что пользователь — member
     is_member = db.query(ClassroomMember).filter(
         ClassroomMember.classroom_id == cr.id,
         ClassroomMember.user_id == current_user.id,
@@ -155,6 +180,10 @@ def get_classroom(
     )
 
 
+# ══════════════════════════════════════════════════════════
+#  TEACHER ENDPOINTS
+# ══════════════════════════════════════════════════════════
+
 @router.post("/{classroom_id}/add-member", response_model=ClassroomMemberResponse)
 def add_member(
     classroom_id: int,
@@ -182,7 +211,6 @@ def add_member(
     db.add(m)
     db.commit()
     db.refresh(m)
-
     return ClassroomMemberResponse(
         id=m.id, user_id=student.id, email=student.email,
         full_name=student.full_name, role=m.role.value,
@@ -199,7 +227,6 @@ def remove_member(
 ):
     cr = _get_classroom_or_404(classroom_id, db)
     _require_owner(cr, teacher)
-
     m = db.query(ClassroomMember).filter(
         ClassroomMember.classroom_id == cr.id,
         ClassroomMember.user_id == user_id,
@@ -207,7 +234,6 @@ def remove_member(
     ).first()
     if not m:
         raise HTTPException(status_code=404, detail="Участник не найден")
-
     db.delete(m)
     db.commit()
     return {"detail": "Участник удалён"}
@@ -220,7 +246,6 @@ def assign_content(
     db: Session = Depends(get_db),
     teacher: User = Depends(require_teacher),
 ):
-    """Преподаватель назначает свой контент группе + выставляет сложность теста."""
     cr = _get_classroom_or_404(classroom_id, db)
     _require_owner(cr, teacher)
 
@@ -251,7 +276,6 @@ def assign_content(
     db.commit()
     db.refresh(cc)
 
-    # Генерируем тест с нужной сложностью для classroom
     _generate_classroom_quiz(db, content, body.quiz_difficulty, cr.id)
 
     return ClassroomContentResponse(
@@ -265,15 +289,13 @@ def assign_content(
 
 
 def _generate_classroom_quiz(db: Session, content: Content, difficulty: str, classroom_id: int):
-    """Запускает генерацию теста с заданной сложностью для classroom."""
     if content.status != ProccesingStatus.done:
-        return  # контент ещё не обработан, тест сгенерируется потом
-
+        return
     try:
         from tasks.agents.quiz_agent import generate_classroom_quiz
         generate_classroom_quiz.delay(content.id, difficulty, classroom_id)
     except Exception:
-        pass  # celery может быть не поднят
+        pass
 
 
 # ══════════════════════════════════════════════════════════
@@ -289,13 +311,9 @@ def classroom_analytics(
     cr = _get_classroom_or_404(classroom_id, db)
     _require_owner(cr, teacher)
 
-    # Все студенты группы
     student_members = (
         db.query(ClassroomMember)
-        .filter(
-            ClassroomMember.classroom_id == cr.id,
-            ClassroomMember.role == MemberRole.student,
-        )
+        .filter(ClassroomMember.classroom_id == cr.id, ClassroomMember.role == MemberRole.student)
         .all()
     )
     student_ids = [m.user_id for m in student_members]
@@ -305,26 +323,18 @@ def classroom_analytics(
         if u:
             students_map[u.id] = u
 
-    # Контент группы
-    cc_list = db.query(ClassroomContent).filter(
-        ClassroomContent.classroom_id == cr.id
-    ).all()
+    cc_list = db.query(ClassroomContent).filter(ClassroomContent.classroom_id == cr.id).all()
     content_ids = [cc.content_id for cc in cc_list]
 
-    # Все квизы по этим контентам
     quizzes = db.query(Quiz).filter(Quiz.content_id.in_(content_ids)).all() if content_ids else []
     quiz_ids = [q.id for q in quizzes]
     quiz_map = {q.id: q for q in quizzes}
 
-    # Попытки студентов группы
     attempts = []
     if quiz_ids and student_ids:
         attempts = (
             db.query(QuizAttempt)
-            .filter(
-                QuizAttempt.quiz_id.in_(quiz_ids),
-                QuizAttempt.user_id.in_(student_ids),
-            )
+            .filter(QuizAttempt.quiz_id.in_(quiz_ids), QuizAttempt.user_id.in_(student_ids))
             .order_by(QuizAttempt.created_at.desc())
             .all()
         )
@@ -340,58 +350,34 @@ def classroom_analytics(
         quiz = quiz_map.get(a.quiz_id)
         if student and quiz:
             attempt_infos.append(StudentAttemptInfo(
-                student_id=student.id,
-                student_name=student.full_name,
-                student_email=student.email,
-                attempt_id=a.id,
-                quiz_title=quiz.title,
-                score=a.score,
-                created_at=a.created_at,
+                student_id=student.id, student_name=student.full_name,
+                student_email=student.email, attempt_id=a.id,
+                quiz_title=quiz.title, score=a.score, created_at=a.created_at,
             ))
-
         if a.score is not None:
             scores.append(a.score)
-            if a.score < 40:
-                score_buckets["0-40"] += 1
-            elif a.score < 70:
-                score_buckets["40-70"] += 1
-            else:
-                score_buckets["70-100"] += 1
+            if a.score < 40: score_buckets["0-40"] += 1
+            elif a.score < 70: score_buckets["40-70"] += 1
+            else: score_buckets["70-100"] += 1
 
-        # Weak topics
         if quiz:
             for question in quiz.questions:
                 user_answer = (a.answers or {}).get(str(question.id), "")
-                if (
-                    user_answer.strip().lower()
-                    != (question.correct_answer or "").strip().lower()
-                    and question.topic_tag
-                ):
+                if user_answer.strip().lower() != (question.correct_answer or "").strip().lower() and question.topic_tag:
                     weak_topic_counter[question.topic_tag] += 1
-                    if question.topic_tag not in weak_topic_students:
-                        weak_topic_students[question.topic_tag] = set()
-                    weak_topic_students[question.topic_tag].add(a.user_id)
+                    weak_topic_students.setdefault(question.topic_tag, set()).add(a.user_id)
 
     avg_score = round(sum(scores) / len(scores), 1) if scores else 0.0
-
     weak_topics = [
-        TopicWeakness(
-            topic=topic,
-            error_count=count,
-            student_count=len(weak_topic_students.get(topic, set())),
-        )
-        for topic, count in weak_topic_counter.most_common(10)
+        TopicWeakness(topic=t, error_count=c, student_count=len(weak_topic_students.get(t, set())))
+        for t, c in weak_topic_counter.most_common(10)
     ]
 
     return ClassroomAnalyticsResponse(
-        classroom_id=cr.id,
-        classroom_name=cr.name,
-        total_students=len(student_ids),
-        total_attempts=len(attempts),
-        average_score=avg_score,
-        attempts=attempt_infos,
-        weak_topics=weak_topics,
-        score_distribution=score_buckets,
+        classroom_id=cr.id, classroom_name=cr.name,
+        total_students=len(student_ids), total_attempts=len(attempts),
+        average_score=avg_score, attempts=attempt_infos,
+        weak_topics=weak_topics, score_distribution=score_buckets,
     )
 
 
@@ -405,9 +391,7 @@ def student_classroom_content(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Студент получает список назначенных материалов в classroom."""
     cr = _get_classroom_or_404(classroom_id, db)
-
     is_member = db.query(ClassroomMember).filter(
         ClassroomMember.classroom_id == cr.id,
         ClassroomMember.user_id == current_user.id,
@@ -424,14 +408,9 @@ def student_classroom_content(
         content = db.query(Content).filter(Content.id == cc.content_id).first()
         if not content:
             continue
-
-        # Найти квизы по этому контенту
-        quizzes = (
-            db.query(Quiz)
-            .filter(Quiz.content_id == content.id, Quiz.is_validated == True)  # noqa
-            .all()
-        )
-
+        quizzes = db.query(Quiz).filter(
+            Quiz.content_id == content.id, Quiz.is_validated == True
+        ).all()
         result.append({
             "content_id": content.id,
             "title": content.title,
@@ -444,5 +423,4 @@ def student_classroom_content(
                 for q in quizzes
             ],
         })
-
     return result

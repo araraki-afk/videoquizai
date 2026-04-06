@@ -20,15 +20,8 @@ export default function TeacherDashboard({ user }) {
           fetch(`${API_URL}/api/v1/content/my`, { headers }),
           fetch(`${API_URL}/api/v1/classroom/my`, { headers }),
         ])
-
-        if (contentRes.ok) {
-          const data = await contentRes.json()
-          setContent(data)
-        }
-        if (classroomRes.ok) {
-          const data = await classroomRes.json()
-          setClassrooms(data)
-        }
+        if (contentRes.ok) setContent(await contentRes.json())
+        if (classroomRes.ok) setClassrooms(await classroomRes.json())
       } catch (err) {
         setError('Ошибка при загрузке данных')
       } finally {
@@ -40,7 +33,6 @@ export default function TeacherDashboard({ user }) {
 
   const totalStudents = classrooms.reduce((sum, c) => sum + (c.member_count || 0), 0)
   const doneContent = content.filter(c => c.status === 'done').length
-  const processingContent = content.filter(c => c.status === 'proccesing' || c.status === 'pending').length
 
   if (isLoading) {
     return (
@@ -73,35 +65,32 @@ export default function TeacherDashboard({ user }) {
         </div>
       </header>
 
-      {error && (
-        <div style={{ padding: '1rem', background: '#fef2f2', color: '#ef4444', borderRadius: '12px', marginBottom: '1.5rem' }}>{error}</div>
-      )}
+      {error && <div style={{ padding: '1rem', background: '#fef2f2', color: '#ef4444', borderRadius: '12px', marginBottom: '1.5rem' }}>{error}</div>}
 
       {/* Quick actions */}
       <div style={{ display: 'flex', gap: '1rem', marginBottom: '2rem', flexWrap: 'wrap' }}>
-        <Link to="/create-test" className="btn-generate" style={{ textDecoration: 'none', width: 'auto', padding: '0.8rem 1.5rem', display: 'inline-flex' }}>
-          ➕ Создать тест
+        <Link to="/create-test" className="btn-generate" style={{ textDecoration: 'none', width: 'auto', padding: '0.8rem 1.5rem', display: 'inline-flex', margin: 0 }}>
+          ➕ Создать материал
         </Link>
         <Link to="/classroom" className="btn-nav btn-back" style={{ textDecoration: 'none', display: 'inline-flex', alignItems: 'center' }}>
           🏫 Управление группами
         </Link>
       </div>
 
-      {/* Content / Materials */}
+      {/* Teacher's content */}
       <section style={{ marginBottom: '2.5rem' }}>
         <div className="section-header">
           <h2 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>📚 Ваши материалы</h2>
+          <span style={{ color: '#64748b', fontSize: '0.9rem' }}>Нажмите, чтобы открыть конспект и тесты</span>
         </div>
 
         {content.length === 0 ? (
           <div style={{ padding: '2rem', background: '#f8fafc', borderRadius: '12px', color: '#64748b', textAlign: 'center' }}>
-            Вы ещё не загрузили ни одного материала. <Link to="/create-test" style={{ color: '#4f46e5' }}>Создайте первый тест →</Link>
+            Вы ещё не создали ни одного материала. <Link to="/create-test" style={{ color: '#4f46e5' }}>Создайте первый →</Link>
           </div>
         ) : (
           <div className="tests-grid">
-            {content.map(item => (
-              <ContentCard key={item.id} item={item} />
-            ))}
+            {content.map(item => <ContentCard key={item.id} item={item} />)}
           </div>
         )}
       </section>
@@ -110,12 +99,12 @@ export default function TeacherDashboard({ user }) {
       <section>
         <div className="section-header">
           <h2 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>🏫 Ваши группы</h2>
-          <Link to="/classroom" className="view-all-link">Все группы →</Link>
+          <Link to="/classroom" className="view-all-link">Управление →</Link>
         </div>
 
         {classrooms.length === 0 ? (
           <div style={{ padding: '2rem', background: '#f8fafc', borderRadius: '12px', color: '#64748b', textAlign: 'center' }}>
-            Нет созданных групп. <Link to="/classroom" style={{ color: '#4f46e5' }}>Создать группу →</Link>
+            Нет групп. <Link to="/classroom" style={{ color: '#4f46e5' }}>Создать →</Link>
           </div>
         ) : (
           <div className="classes-grid">
@@ -127,9 +116,6 @@ export default function TeacherDashboard({ user }) {
                     {cls.member_count || 0} уч.
                   </span>
                 </div>
-                {cls.description && (
-                  <p style={{ color: '#64748b', fontSize: '0.9rem', margin: '0 0 1rem 0' }}>{cls.description}</p>
-                )}
                 <div style={{ color: '#94a3b8', fontSize: '0.85rem' }}>
                   Код: <strong style={{ color: '#475569' }}>{cls.invite_code}</strong>
                 </div>
@@ -150,25 +136,22 @@ function ContentCard({ item }) {
     done: { label: 'Готово', color: '#10b981', bg: '#ecfdf5' },
     failed: { label: 'Ошибка', color: '#ef4444', bg: '#fef2f2' },
   }
-  const typeMap = {
-    youtube_url: '🎥 YouTube',
-    raw_text: '📝 Текст',
-    uploaded_video: '📁 Файл',
-  }
 
   const st = statusMap[item.status] || statusMap.pending
 
   return (
-    <div className="test-card content-card" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1rem' }}>
+    <Link to={`/content/${item.id}`} className="test-card content-card" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', textDecoration: 'none', color: 'inherit' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.8rem' }}>
         <h3 style={{ margin: 0, fontSize: '1.05rem', color: '#1e293b', flex: 1 }}>{item.title}</h3>
         <span style={{ fontSize: '0.75rem', padding: '0.2rem 0.6rem', borderRadius: '20px', background: st.bg, color: st.color, fontWeight: '600', whiteSpace: 'nowrap', marginLeft: '0.5rem' }}>
           {st.label}
         </span>
       </div>
-      <div style={{ color: '#94a3b8', fontSize: '0.85rem', marginBottom: '1rem' }}>
-        {typeMap[item.content_type] || item.content_type}
-      </div>
-    </div>
+      {item.status === 'done' && (
+        <div style={{ color: '#4f46e5', fontSize: '0.85rem', fontWeight: '500', marginTop: '0.5rem' }}>
+          📖 Открыть конспект и тесты →
+        </div>
+      )}
+    </Link>
   )
 }

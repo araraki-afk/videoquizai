@@ -195,11 +195,11 @@ export default function CreateTest() {
             <div className="processing-icon-circle done">✅</div>
             <div className="processing-info">
               <p className="processing-title">{successMsg}</p>
-              <p className="processing-subtitle">Перейдите на главную, чтобы увидеть тест, или создайте ещё один.</p>
+              <p className="processing-subtitle">Откройте конспект и тест, или создайте ещё один материал.</p>
             </div>
             <div className="processing-actions">
-              <button className="btn btn-primary btn-large" onClick={() => navigate('/')}>
-                На главную →
+              <button className="btn btn-primary btn-large" onClick={() => navigate(`/content/${completedContentId}`)}>
+                📖 Открыть конспект →
               </button>
               <button className="btn btn-outline" onClick={handleReset}>
                 Создать ещё
