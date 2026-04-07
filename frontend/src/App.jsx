@@ -9,6 +9,7 @@ import TestTaking from './pages/TestTaking'
 import TestResults from './pages/TestResults'
 import Classroom from './pages/Classroom'
 import ContentDetail from './pages/ContentDetail'
+import ClassroomAnalytics from './pages/ClassroomAnalytics'
 import './App.css'
 
 function App() {
@@ -59,6 +60,7 @@ function App() {
             <Route path="/results/:id" element={<TestResults />} />
             <Route path="/classroom" element={<Classroom user={currentUser} />} />
             <Route path="/content/:id" element={<ContentDetail />} />
+            <Route path="/classroom/:id/analytics" element={<ClassroomAnalytics />} />
             <Route path="*" element={<Navigate to={isTeacher ? '/teacher' : '/'} />} />
           </Routes>
         </main>
@@ -90,14 +92,12 @@ function Sidebar({ user, onLogout }) {
               Группы
             </Link>
           </li>
-          {isTeacher && (
-            <li>
-              <Link to="/create-test" className="nav-link">
-                <span className="icon">➕</span>
-                Создать материал
-              </Link>
-            </li>
-          )}
+          <li>
+            <Link to="/create-test" className="nav-link">
+              <span className="icon">➕</span>
+              Создать тест
+            </Link>
+          </li>
         </ul>
       </nav>
 

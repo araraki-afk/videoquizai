@@ -116,9 +116,12 @@ export default function TeacherDashboard({ user }) {
                     {cls.member_count || 0} уч.
                   </span>
                 </div>
-                <div style={{ color: '#94a3b8', fontSize: '0.85rem' }}>
+                <div style={{ color: '#94a3b8', fontSize: '0.85rem', marginBottom: '1rem' }}>
                   Код: <strong style={{ color: '#475569' }}>{cls.invite_code}</strong>
                 </div>
+                <Link to={`/classroom/${cls.id}/analytics`} className="btn-nav btn-back" style={{ textDecoration: 'none', textAlign: 'center', padding: '0.6rem', fontSize: '0.85rem' }}>
+                  📊 Аналитика группы
+                </Link>
               </div>
             ))}
           </div>
