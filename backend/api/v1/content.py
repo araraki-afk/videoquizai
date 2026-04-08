@@ -20,7 +20,7 @@ def _launch_pipeline(content_id: int) -> str | None:
     """Запускает оркестратор. Если celery не поднят, остальное не падает """
     try:
         from tasks.agents.orchestrator import run_pipeline
-        task = run_pipeline,delay(content_id)
+        task = run_pipeline.delay(content_id)
         return task.id
     except Exception:
         return None
