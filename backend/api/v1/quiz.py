@@ -27,6 +27,19 @@ def _get_validated_quiz(quiz_id: int, db: Session) -> Quiz:
     return quiz
 
 
+@router.get("/", response_model=list[QuizResponse])
+def list_my_quizzes(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    return (
+        db.query(Quiz)
+        .join(Content, Quiz.content_id == Content.id)
+        .filter(Content.user_id == current_user.id, Quiz.is_validated == True)
+        .all()
+    )
+
+
 @router.get("/by-content/{content_id}", response_model=list[QuizResponse])
 def quizzes_by_content(
     content_id: int,
@@ -56,16 +69,44 @@ def quizzes_by_content(
         .all()
     )
 
-@router.get("/", response_model=list[QuizResponse])
-def list_my_quizzes(
+
+@router.get("/attempts/{attempt_id}", response_model=AttemptDetailResponse)
+def get_attempt_detail(
+    attempt_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    return (
-        db.query(Quiz)
-        .join(Content, Quiz.content_id == Content.id)
-        .filter(Content.user_id == current_user.id, Quiz.is_validated == True)
-        .all()
+    attempt = (
+        db.query(QuizAttempt)
+        .filter(QuizAttempt.id == attempt_id, QuizAttempt.user_id == current_user.id)
+        .first()
+    )
+    if not attempt:
+        raise HTTPException(status_code=404, detail="Попытка не найдена")
+
+    quiz = db.query(Quiz).filter(Quiz.id == attempt.quiz_id).first()
+
+    fb = (
+        db.query(AttemptFeedback)
+        .filter(AttemptFeedback.attempt_id == attempt.id)
+        .first()
+    )
+    if not fb:
+        fb = run_feedback_agent(db, attempt)
+
+    return AttemptDetailResponse(
+        id=attempt.id,
+        quiz_id=attempt.quiz_id,
+        quiz_title=quiz.title if quiz else None,
+        score=attempt.score,
+        created_at=attempt.created_at,
+        feedback=AttemptFeedbackResponse(
+            overall_summary=fb.overall_summary,
+            mastery_score=fb.mastery_score,
+            per_question=fb.per_question,
+            recommendations=fb.recommendations,
+            strengths=fb.strengths,
+        ),
     )
 
 
@@ -162,42 +203,3 @@ def my_attempts(
         for a in attempts
     ]
 
-
-@router.get("/attempts/{attempt_id}", response_model=AttemptDetailResponse)
-def get_attempt_detail(
-    attempt_id: int,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-):
-    attempt = (
-        db.query(QuizAttempt)
-        .filter(QuizAttempt.id == attempt_id, QuizAttempt.user_id == current_user.id)
-        .first()
-    )
-    if not attempt:
-        raise HTTPException(status_code=404, detail="Попытка не найдена")
-
-    quiz = db.query(Quiz).filter(Quiz.id == attempt.quiz_id).first()
-
-    fb = (
-        db.query(AttemptFeedback)
-        .filter(AttemptFeedback.attempt_id == attempt.id)
-        .first()
-    )
-    if not fb:
-        fb = run_feedback_agent(db, attempt)
-
-    return AttemptDetailResponse(
-        id=attempt.id,
-        quiz_id=attempt.quiz_id,
-        quiz_title=quiz.title if quiz else None,
-        score=attempt.score,
-        created_at=attempt.created_at,
-        feedback=AttemptFeedbackResponse(
-            overall_summary=fb.overall_summary,
-            mastery_score=fb.mastery_score,
-            per_question=fb.per_question,
-            recommendations=fb.recommendations,
-            strengths=fb.strengths,
-        ),
-    )

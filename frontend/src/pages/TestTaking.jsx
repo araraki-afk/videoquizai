@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import QuestionCard from './QuestionCard';
 import '../styles/pages.css';
 
@@ -13,24 +13,36 @@ export default function TestTaking() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
+  const [submitError, setSubmitError] = useState('');
   const [started, setStarted] = useState(false);
+  const [alreadyAttempted, setAlreadyAttempted] = useState(null); // { attempt_id, score }
 
   const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
   const token = localStorage.getItem('token');
+  const headers = { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' };
 
   useEffect(() => {
     const fetchQuiz = async () => {
       setIsLoading(true);
       try {
-        const res = await fetch(`${API_URL}/api/v1/quiz/${id}`, {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
+        // Check if already attempted
+        const checkRes = await fetch(`${API_URL}/api/v1/quiz/${id}/check-attempt`, { headers });
+        if (checkRes.ok) {
+          const checkData = await checkRes.json();
+          if (checkData.attempted) {
+            setAlreadyAttempted(checkData);
+            setIsLoading(false);
+            return;
+          }
+        }
+
+        // Fetch quiz
+        const res = await fetch(`${API_URL}/api/v1/quiz/${id}`, { headers });
         if (!res.ok) {
           const err = await res.json();
           throw new Error(err.detail || 'Не удалось загрузить тест');
         }
-        const data = await res.json();
-        setQuiz(data);
+        setQuiz(await res.json());
       } catch (err) {
         setError(err.message);
       } finally {
@@ -62,21 +74,21 @@ export default function TestTaking() {
 
   const submitResults = async () => {
     setIsSubmitting(true);
+    setSubmitError('');
     try {
       const response = await fetch(`${API_URL}/api/v1/quiz/${quiz.id}/submit`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
+        headers,
         body: JSON.stringify({ answers })
       });
-      if (!response.ok) throw new Error('Ошибка при отправке');
       const result = await response.json();
-      navigate(`/results/${result.attempt_id}`, { state: result });
-    } catch (error) {
-      setError('Ошибка при отправке ответов. Попробуйте ещё раз.');
-    } finally {
+      if (!response.ok) {
+        throw new Error(result.detail || 'Ошибка при отправке');
+      }
+      // Redirect to results
+      navigate(`/results/${result.attempt_id}`, { state: result, replace: true });
+    } catch (err) {
+      setSubmitError(err.message);
       setIsSubmitting(false);
     }
   };
@@ -90,7 +102,29 @@ export default function TestTaking() {
     );
   }
 
-  // Error
+  // Already attempted
+  if (alreadyAttempted) {
+    return (
+      <div className="page-container">
+        <div className="content-card" style={{ maxWidth: '600px', margin: '0 auto', textAlign: 'center', padding: '3rem' }}>
+          <p style={{ fontSize: '3rem', marginBottom: '1rem' }}>✅</p>
+          <h2 style={{ marginBottom: '0.5rem' }}>Вы уже прошли этот тест</h2>
+          <p style={{ color: '#64748b', marginBottom: '0.5rem' }}>
+            Ваш результат: <strong style={{ color: alreadyAttempted.score >= 70 ? '#10b981' : '#ef4444', fontSize: '1.3rem' }}>{alreadyAttempted.score}%</strong>
+          </p>
+          <p style={{ color: '#94a3b8', marginBottom: '2rem', fontSize: '0.9rem' }}>Каждый тест можно пройти только один раз</p>
+          <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', flexWrap: 'wrap' }}>
+            <Link to={`/results/${alreadyAttempted.attempt_id}`} className="btn-generate" style={{ width: 'auto', padding: '0.8rem 2rem', textDecoration: 'none', margin: 0 }}>
+              📊 Посмотреть результаты
+            </Link>
+            <button className="btn-nav btn-back" onClick={() => navigate('/')}>На главную</button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Error loading quiz
   if (error) {
     return (
       <div className="page-container">
@@ -98,9 +132,7 @@ export default function TestTaking() {
           <p style={{ fontSize: '3rem', marginBottom: '1rem' }}>😕</p>
           <h2 style={{ marginBottom: '1rem' }}>Не удалось загрузить тест</h2>
           <p style={{ color: '#64748b', marginBottom: '2rem' }}>{error}</p>
-          <button className="btn-generate" style={{ maxWidth: '300px', margin: '0 auto' }} onClick={() => navigate('/')}>
-            На главную
-          </button>
+          <button className="btn-generate" style={{ maxWidth: '300px', margin: '0 auto' }} onClick={() => navigate('/')}>На главную</button>
         </div>
       </div>
     );
@@ -114,19 +146,15 @@ export default function TestTaking() {
           <p style={{ fontSize: '3rem', marginBottom: '1rem' }}>📝</p>
           <h2 style={{ marginBottom: '0.5rem' }}>{quiz.title}</h2>
           <p style={{ color: '#64748b', marginBottom: '2rem' }}>
-            {questions.length} вопросов • Выберите ответ на каждый вопрос
+            {questions.length} вопросов • Тест можно пройти только один раз
           </p>
-
-          <div style={{
-            background: '#f8fafc', padding: '1.5rem', borderRadius: '12px', marginBottom: '2rem',
-            textAlign: 'left', lineHeight: '1.8', color: '#475569', fontSize: '0.95rem'
-          }}>
+          <div style={{ background: '#f8fafc', padding: '1.5rem', borderRadius: '12px', marginBottom: '2rem', textAlign: 'left', lineHeight: '1.8', color: '#475569', fontSize: '0.95rem' }}>
             <p>✓ Отвечайте на вопросы последовательно</p>
             <p>✓ Вы можете вернуться к предыдущему вопросу</p>
-            <p>✓ После ответа на последний вопрос тест будет отправлен</p>
+            <p>✓ После последнего вопроса тест будет отправлен автоматически</p>
             <p>✓ Результат и обратная связь будут показаны сразу</p>
+            <p style={{ color: '#ef4444', fontWeight: '500' }}>⚠ Повторное прохождение невозможно</p>
           </div>
-
           <button className="btn-generate" style={{ maxWidth: '300px', margin: '0 auto' }} onClick={() => setStarted(true)}>
             Начать тест 🚀
           </button>
@@ -139,7 +167,6 @@ export default function TestTaking() {
   return (
     <div className="page-container">
       <div className="content-card">
-        {/* Progress bar */}
         <div className="test-progress-bar">
           <div className="progress-fill" style={{ width: `${progress}%` }}></div>
         </div>
@@ -159,21 +186,16 @@ export default function TestTaking() {
           />
         )}
 
-        {error && (
+        {submitError && (
           <div style={{ color: '#ef4444', background: '#fef2f2', padding: '0.8rem', borderRadius: '8px', marginBottom: '1rem', textAlign: 'center' }}>
-            {error}
+            {submitError}
           </div>
         )}
 
         <div className="test-actions-footer">
-          <button
-            className="btn-nav btn-back"
-            onClick={handlePrev}
-            disabled={currentStep === 0 || isSubmitting}
-          >
+          <button className="btn-nav btn-back" onClick={handlePrev} disabled={currentStep === 0 || isSubmitting}>
             ← Назад
           </button>
-
           <button
             className="btn-nav btn-next"
             onClick={handleNext}
