@@ -13,10 +13,37 @@ body {
 }
 
 .app {
+  /* Задаем базовый цвет фона (очень светло-серый, как на макете, или #ffffff для белого) */
+  background-color: #f8f9fa; 
+  
+  /* Подключаем все три картинки через запятую */
+  background-image: 
+    url('./assets/star-top-left.svg'),
+    url('./assets/star-bottom-left.svg'),
+    url('./assets/star-right.svg');
+
+  /* Чтобы звездочки не размножались как обои */
+  background-repeat: no-repeat, no-repeat, no-repeat;
+
+  /* Позиционируем каждую звездочку (X Y) */
+  background-position: 
+    -50px -50px,   /* Левая верхняя (уводим немного за край экрана) */
+    -50px 100%,    /* Левая нижняя (прижата к низу) */
+    100% 30%;      /* Правая средняя (прижата к правому краю) */
+
+  /* Задаем размер для каждой звездочки (подбери на свой вкус) */
+  background-size: 
+    500px,  /* Размер левой верхней */
+    700px,  /* Размер левой нижней */
+    400px;  /* Размер правой */
+
+  /* Чтобы фон всегда занимал минимум всю высоту экрана */
+  min-height: 100vh;
   display: flex;
   height: 100vh;
-  background-color: #ffffff;
-}
+  background-color: #ffffff;}
+
+
 
 /* Sidebar Styles */
 .sidebar {

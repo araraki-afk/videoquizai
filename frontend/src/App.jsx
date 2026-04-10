@@ -10,6 +10,7 @@ import TestResults from './pages/TestResults'
 import Classroom from './pages/Classroom'
 import ContentDetail from './pages/ContentDetail'
 import ClassroomAnalytics from './pages/ClassroomAnalytics'
+import logo from './assets/logo_vq.png'
 import './App.css'
 
 function App() {
@@ -73,9 +74,10 @@ function Sidebar({ user, onLogout }) {
   const isTeacher = user.role === 'teacher'
 
   return (
+
     <aside className="sidebar">
       <div className="sidebar-header">
-        <h2>VQ</h2>
+        <img src={logo} alt="Video Quiz AI" className="sidebar-logo" />
       </div>
 
       <nav className="sidebar-nav">
