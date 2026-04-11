@@ -6,7 +6,7 @@ from tasks.celery_app import celery
 from tasks.agents.transcription_agent import transcription_agent
 from tasks.agents.topics_agent import topics_agent
 from tasks.agents.summary_agent import summary_agent
-from . import quiz_agent
+from tasks.agents.quiz_agent import quiz_agent
 from core.database import SessionLocal
 from models.content import Content, ProccesingStatus
 
