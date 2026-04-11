@@ -15,7 +15,7 @@ export default function TestTaking() {
   const [error, setError] = useState('');
   const [submitError, setSubmitError] = useState('');
   const [started, setStarted] = useState(false);
-  const [alreadyAttempted, setAlreadyAttempted] = useState(null); // { attempt_id, score }
+  const [attemptStatus, setAttemptStatus] = useState(null); // { attempted, remaining, unlimited, ... }
 
   const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
   const token = localStorage.getItem('token');
@@ -25,12 +25,14 @@ export default function TestTaking() {
     const fetchQuiz = async () => {
       setIsLoading(true);
       try {
-        // Check if already attempted
+        // Check attempt status
         const checkRes = await fetch(`${API_URL}/api/v1/quiz/${id}/check-attempt`, { headers });
         if (checkRes.ok) {
           const checkData = await checkRes.json();
-          if (checkData.attempted) {
-            setAlreadyAttempted(checkData);
+          setAttemptStatus(checkData);
+          
+          // If limit reached
+          if (!checkData.unlimited && checkData.remaining === 0) {
             setIsLoading(false);
             return;
           }
@@ -85,7 +87,6 @@ export default function TestTaking() {
       if (!response.ok) {
         throw new Error(result.detail || 'Ошибка при отправке');
       }
-      // Redirect to results
       navigate(`/results/${result.attempt_id}`, { state: result, replace: true });
     } catch (err) {
       setSubmitError(err.message);
@@ -102,21 +103,30 @@ export default function TestTaking() {
     );
   }
 
-  // Already attempted
-  if (alreadyAttempted) {
+  // Limit reached
+  if (attemptStatus && !attemptStatus.unlimited && attemptStatus.remaining === 0) {
     return (
       <div className="page-container">
         <div className="content-card" style={{ maxWidth: '600px', margin: '0 auto', textAlign: 'center', padding: '3rem' }}>
-          <p style={{ fontSize: '3rem', marginBottom: '1rem' }}>✅</p>
-          <h2 style={{ marginBottom: '0.5rem' }}>Вы уже прошли этот тест</h2>
-          <p style={{ color: '#64748b', marginBottom: '0.5rem' }}>
-            Ваш результат: <strong style={{ color: alreadyAttempted.score >= 70 ? '#10b981' : '#ef4444', fontSize: '1.3rem' }}>{alreadyAttempted.score}%</strong>
+          <p style={{ fontSize: '3rem', marginBottom: '1rem' }}>🚫</p>
+          <h2 style={{ marginBottom: '0.5rem' }}>Лимит попыток исчерпан</h2>
+          <p style={{ color: '#64748b', marginBottom: '1.5rem' }}>
+            Вы достигли максимального количества попыток для этого теста.
           </p>
-          <p style={{ color: '#94a3b8', marginBottom: '2rem', fontSize: '0.9rem' }}>Каждый тест можно пройти только один раз</p>
+          {attemptStatus.last_score !== null && (
+            <div style={{ background: '#f8fafc', padding: '1rem', borderRadius: '8px', marginBottom: '1.5rem' }}>
+              <p style={{ margin: '0 0 0.5rem', color: '#64748b', fontSize: '0.9rem' }}>Ваш лучший результат:</p>
+              <p style={{ margin: 0, fontSize: '2rem', fontWeight: '700', color: attemptStatus.last_score >= 70 ? '#10b981' : '#ef4444' }}>
+                {attemptStatus.last_score}%
+              </p>
+            </div>
+          )}
           <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', flexWrap: 'wrap' }}>
-            <Link to={`/results/${alreadyAttempted.attempt_id}`} className="btn-generate" style={{ width: 'auto', padding: '0.8rem 2rem', textDecoration: 'none', margin: 0 }}>
-              📊 Посмотреть результаты
-            </Link>
+            {attemptStatus.last_attempt && (
+              <Link to={`/results/${attemptStatus.last_attempt}`} className="btn-generate" style={{ width: 'auto', padding: '0.8rem 2rem', textDecoration: 'none', margin: 0 }}>
+                📊 Посмотреть результат
+              </Link>
+            )}
             <button className="btn-nav btn-back" onClick={() => navigate('/')}>На главную</button>
           </div>
         </div>
@@ -140,21 +150,27 @@ export default function TestTaking() {
 
   // Instructions screen
   if (!started) {
+    const remainingText = attemptStatus?.unlimited
+      ? 'Неограниченное количество попыток'
+      : `${attemptStatus?.remaining || 0} ${attemptStatus?.remaining === 1 ? 'попытка' : 'попыток'} осталось`;
+
     return (
       <div className="page-container">
         <div className="content-card" style={{ maxWidth: '700px', margin: '0 auto', textAlign: 'center' }}>
           <p style={{ fontSize: '3rem', marginBottom: '1rem' }}>📝</p>
           <h2 style={{ marginBottom: '0.5rem' }}>{quiz.title}</h2>
           <p style={{ color: '#64748b', marginBottom: '2rem' }}>
-            {questions.length} вопросов • Тест можно пройти только один раз
+            {questions.length} вопросов • {remainingText}
           </p>
+
           <div style={{ background: '#f8fafc', padding: '1.5rem', borderRadius: '12px', marginBottom: '2rem', textAlign: 'left', lineHeight: '1.8', color: '#475569', fontSize: '0.95rem' }}>
             <p>✓ Отвечайте на вопросы последовательно</p>
             <p>✓ Вы можете вернуться к предыдущему вопросу</p>
-            <p>✓ После последнего вопроса тест будет отправлен автоматически</p>
+            <p>✓ После последнего вопроса тест будет отправлен</p>
             <p>✓ Результат и обратная связь будут показаны сразу</p>
-            <p style={{ color: '#ef4444', fontWeight: '500' }}>⚠ Повторное прохождение невозможно</p>
+            {!attemptStatus?.unlimited && <p style={{ color: '#ef4444', fontWeight: '500' }}>⚠ Попыток: {attemptStatus?.remaining || 0}</p>}
           </div>
+
           <button className="btn-generate" style={{ maxWidth: '300px', margin: '0 auto' }} onClick={() => setStarted(true)}>
             Начать тест 🚀
           </button>
@@ -173,9 +189,16 @@ export default function TestTaking() {
 
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
           <h2 style={{ margin: 0, fontSize: '1.2rem', color: '#1e293b' }}>{quiz.title}</h2>
-          <span style={{ color: '#4f46e5', fontWeight: '600', fontSize: '0.95rem' }}>
-            {currentStep + 1} / {questions.length}
-          </span>
+          <div style={{ textAlign: 'right' }}>
+            <span style={{ color: '#4f46e5', fontWeight: '600', fontSize: '0.95rem', display: 'block' }}>
+              {currentStep + 1} / {questions.length}
+            </span>
+            {attemptStatus && !attemptStatus.unlimited && (
+              <span style={{ color: '#f59e0b', fontWeight: '500', fontSize: '0.85rem', display: 'block' }}>
+                Осталось: {attemptStatus.remaining - 1} попыток
+              </span>
+            )}
+          </div>
         </div>
 
         {currentQuestion && (

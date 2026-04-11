@@ -119,6 +119,41 @@ def get_quiz(
     return _get_validated_quiz(quiz_id, db)
 
 
+@router.get("/{quiz_id}/check-attempt")
+def check_attempt(
+    quiz_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    quiz = db.query(Quiz).filter(Quiz.id == quiz_id).first()
+    if not quiz:
+        raise HTTPException(status_code=404, detail="Тест не найден")
+    
+    attempts = (
+        db.query(QuizAttempt)
+        .filter(QuizAttempt.quiz_id == quiz_id, QuizAttempt.user_id == current_user.id)
+        .all()
+    )
+
+    if quiz.max_attempts is None:
+        return {
+            "attempted": len(attempts) > 0,
+            "remaining": None,
+            "unlimited": True,
+            "last_attempt": attempts[-1].id if attempts else None,
+            "last_score": attempts[-1].score if attempts else None,
+        }
+    else:
+        remaining = max(0, quiz.max_attempts - len(attempts))
+        return {
+            "attempted": len(attempts) > 0,
+            "remaining": remaining,
+            "unlimited": False,
+            "last_attempt": attempts[-1].id if attempts else None,
+            "last_score": attempts[-1].score if attempts else None,
+        }
+
+
 @router.post("/{quiz_id}/submit", response_model=QuizAttemptResult)
 def submit_quiz(
     quiz_id: int,
@@ -127,6 +162,16 @@ def submit_quiz(
     current_user: User = Depends(get_current_user),
 ):
     quiz = _get_validated_quiz(quiz_id, db)
+
+
+    if quiz.max_attempts is not None:
+        attempt_count = (
+            db.query(QuizAttempt)
+            .filter(QuizAttempt.quiz_id == quiz_id, QuizAttempt.user_id == current_user.id)
+            .count()
+        )
+        if attempt_count >= quiz.max_attempts:
+            raise HTTPException(status_code=400, detail="Вы достигли лимита попыток")
 
     answers_normalized: dict[str, str] = {
         str(k): (v or "") for k, v in body.answers.items()

@@ -17,6 +17,7 @@ class ClassroomAddMember(BaseModel):
 class ClassroomAssignContent(BaseModel):
     content_id: int
     quiz_difficulty: str = "medium"  # easy / medium / hard
+    max_attempts: int | None = 2
 
 
 class ClassroomJoinRequest(BaseModel):
@@ -41,6 +42,7 @@ class ClassroomContentResponse(BaseModel):
     content_type: str
     content_status: str
     quiz_difficulty: str
+    max_attempts: int | None
     assigned_at: datetime
 
 

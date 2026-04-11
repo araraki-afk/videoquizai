@@ -13,6 +13,7 @@ class Quiz(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     is_validated = Column(Boolean, default=False, nullable=False)
+    max_attempts = Column(Integer, nullable=False)
 
     content   = relationship("Content",     back_populates="quizzes")
     questions = relationship("Question",    back_populates="quiz", cascade="all, delete")

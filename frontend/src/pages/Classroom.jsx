@@ -23,6 +23,7 @@ export default function Classroom({ user }) {
   const [myContent, setMyContent] = useState([])
   const [selectedContentId, setSelectedContentId] = useState('')
   const [assignDifficulty, setAssignDifficulty] = useState('medium')
+  const [maxAttempts, setMaxAttempts] = useState(3)
 
   const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
   const token = localStorage.getItem('token')
@@ -52,7 +53,6 @@ export default function Classroom({ user }) {
 
   useEffect(() => { fetchClassrooms() }, [])
 
-  // Create classroom (teacher)
   const handleCreate = async (e) => {
     e.preventDefault()
     if (!newName.trim()) return
@@ -72,7 +72,6 @@ export default function Classroom({ user }) {
     }
   }
 
-  // Join classroom (student)
   const handleJoin = async (e) => {
     e.preventDefault()
     if (!inviteCode.trim()) return
@@ -94,18 +93,21 @@ export default function Classroom({ user }) {
     }
   }
 
-  // Assign content to classroom (teacher)
   const handleAssign = async (classroomId) => {
     if (!selectedContentId) return
     setIsSubmitting(true)
     try {
       const res = await fetch(`${API_URL}/api/v1/classroom/${classroomId}/assign-content`, {
         method: 'POST', headers,
-        body: JSON.stringify({ content_id: Number(selectedContentId), quiz_difficulty: assignDifficulty })
+        body: JSON.stringify({
+          content_id: Number(selectedContentId),
+          quiz_difficulty: assignDifficulty,
+          max_attempts: maxAttempts
+        })
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.detail || 'Ошибка')
-      setAssigningClassroomId(null); setSelectedContentId(''); setAssignDifficulty('medium')
+      setAssigningClassroomId(null); setSelectedContentId(''); setAssignDifficulty('medium'); setMaxAttempts(3)
       alert('Материал назначен!')
     } catch (err) {
       alert(err.message)
@@ -148,16 +150,13 @@ export default function Classroom({ user }) {
       {error && <div style={{ padding: '1rem', background: '#fef2f2', color: '#ef4444', borderRadius: '12px', marginBottom: '1.5rem' }}>{error}</div>}
       {joinMsg && <div style={{ padding: '1rem', background: '#ecfdf5', color: '#166534', borderRadius: '12px', marginBottom: '1.5rem', fontWeight: '500' }}>{joinMsg}</div>}
 
-      {/* Join form (student) */}
+      {/* Join form */}
       {isJoining && (
         <div className="content-card" style={{ marginBottom: '2rem', padding: '1.5rem', border: '2px dashed #cbd5e1', background: '#f8fafc' }}>
           <h3 style={{ marginTop: 0, marginBottom: '1rem' }}>Присоединиться к группе</h3>
           <form onSubmit={handleJoin} style={{ display: 'flex', gap: '0.8rem', flexWrap: 'wrap' }}>
-            <input
-              type="text" placeholder="Введите код-приглашение" value={inviteCode}
-              onChange={(e) => setInviteCode(e.target.value)} required
-              style={{ flex: 1, minWidth: '200px', padding: '0.8rem', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '1rem' }}
-            />
+            <input type="text" placeholder="Введите код-приглашение" value={inviteCode} onChange={(e) => setInviteCode(e.target.value)} required
+              style={{ flex: 1, minWidth: '200px', padding: '0.8rem', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '1rem' }} />
             <button type="submit" disabled={isSubmitting} style={{ padding: '0.8rem 1.5rem', background: '#10b981', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}>
               {isSubmitting ? '...' : 'Присоединиться'}
             </button>
@@ -168,7 +167,7 @@ export default function Classroom({ user }) {
         </div>
       )}
 
-      {/* Create form (teacher) */}
+      {/* Create form */}
       {isCreating && (
         <div className="content-card" style={{ marginBottom: '2rem', padding: '1.5rem', border: '2px dashed #cbd5e1', background: '#f8fafc' }}>
           <h3 style={{ marginTop: 0, marginBottom: '1rem' }}>Создание нового класса</h3>
@@ -212,13 +211,12 @@ export default function Classroom({ user }) {
               <div style={{ display: 'flex', gap: '0.5rem', marginTop: 'auto', flexWrap: 'wrap' }}>
                 {isTeacher && (
                   <>
-                    <button
-                      className="btn-nav btn-next"
-                      style={{ flex: 1, fontSize: '0.85rem', padding: '0.6rem' }}
-                      onClick={() => { setAssigningClassroomId(cls.id); fetchMyContent() }}
-                    >
+                    <button className="btn-nav btn-next" style={{ flex: 1, fontSize: '0.85rem', padding: '0.6rem' }} onClick={() => { setAssigningClassroomId(cls.id); fetchMyContent() }}>
                       📄 Назначить материал
                     </button>
+                    <Link to={`/classroom/${cls.id}/analytics`} className="btn-nav btn-back" style={{ flex: 1, fontSize: '0.85rem', padding: '0.6rem', textAlign: 'center', textDecoration: 'none' }}>
+                      📊 Аналитика
+                    </Link>
                   </>
                 )}
               </div>
@@ -237,16 +235,28 @@ export default function Classroom({ user }) {
                         {myContent.map(c => <option key={c.id} value={c.id}>{c.title}</option>)}
                       </select>
 
-                      <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.8rem' }}>
-                        {['easy', 'medium', 'hard'].map(d => (
-                          <button key={d} type="button"
-                            className={`difficulty-btn ${assignDifficulty === d ? 'active' : ''} difficulty-${d}`}
-                            onClick={() => setAssignDifficulty(d)}
-                            style={{ flex: 1, padding: '0.5rem', fontSize: '0.8rem' }}
-                          >
-                            {d === 'easy' ? '🟢 Лёгкий' : d === 'medium' ? '🟡 Средний' : '🔴 Сложный'}
-                          </button>
-                        ))}
+                      <div style={{ marginBottom: '0.8rem' }}>
+                        <label style={{ display: 'block', marginBottom: '0.4rem', fontSize: '0.85rem', fontWeight: '500', color: '#475569' }}>Сложность</label>
+                        <div style={{ display: 'flex', gap: '0.4rem' }}>
+                          {['easy', 'medium', 'hard'].map(d => (
+                            <button key={d} type="button"
+                              className={`difficulty-btn ${assignDifficulty === d ? 'active' : ''} difficulty-${d}`}
+                              onClick={() => setAssignDifficulty(d)}
+                              style={{ flex: 1, padding: '0.5rem', fontSize: '0.8rem' }}
+                            >
+                              {d === 'easy' ? '🟢' : d === 'medium' ? '🟡' : '🔴'} {d === 'easy' ? 'Лёгкий' : d === 'medium' ? 'Средний' : 'Сложный'}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div style={{ marginBottom: '0.8rem' }}>
+                        <label style={{ display: 'block', marginBottom: '0.4rem', fontSize: '0.85rem', fontWeight: '500', color: '#475569' }}>Количество попыток: <strong>{maxAttempts === 0 ? '∞' : maxAttempts}</strong></label>
+                        <input type="range" min="1" max="10" value={maxAttempts} onChange={(e) => setMaxAttempts(Number(e.target.value))}
+                          style={{ width: '100%', marginBottom: '0.4rem' }} />
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', color: '#94a3b8' }}>
+                          <span>1</span><span>5</span><span>10</span>
+                        </div>
                       </div>
 
                       <div style={{ display: 'flex', gap: '0.5rem' }}>

@@ -52,6 +52,7 @@ class ClassroomContent(Base):
     classroom_id = Column(Integer, ForeignKey("classrooms.id"), nullable=False)
     content_id = Column(Integer, ForeignKey("contents.id"), nullable=False)
     quiz_difficulty = Column(String, default="medium")  # easy / medium / hard
+    max_attempts=Column(Integer, nullable=False, default=2)
     assigned_at = Column(DateTime(timezone=True), server_default=func.now())
     assigned_by = Column(Integer, ForeignKey("users.id"), nullable=True)
 

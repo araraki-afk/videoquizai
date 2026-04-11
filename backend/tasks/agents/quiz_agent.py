@@ -39,6 +39,7 @@ def quiz_agent(self, content_id: int) -> int:
             content_id=content_id, 
             title=f"Тест: {content.title}",
             is_validated=False,
+            max_attempts=None,
             )
         db.add(quiz)
         db.flush()
@@ -155,6 +156,7 @@ def generate_classroom_quiz(self, content_id: int, difficulty: str = "medium", c
             content_id=content_id,
             title=f"Тест ({diff_label}): {content.title}",
             is_validated=False,
+            max_attempts=max_attempts,
         )
         db.add(quiz)
         db.flush()
