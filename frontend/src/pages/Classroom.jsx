@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useParams, useNavigate } from 'react-router-dom'
 import '../styles/pages.css'
 
 export default function Classroom({ user }) {
+  const { id } = useParams()
+  const navigate = useNavigate()
   const [classrooms, setClassrooms] = useState([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState('')
@@ -123,6 +125,44 @@ export default function Classroom({ user }) {
       </div>
     )
   }
+
+  // DETAIL VIEW: Show when /classroom/:id
+  if (id) {
+    const classroom = classrooms.find(c => c.id === parseInt(id))
+    if (!classroom) {
+      return (
+        <div className="page-container">
+          <div className="content-card" style={{ textAlign: 'center', padding: '3rem' }}>
+            <h2>Группа не найдена</h2>
+            <button className="btn-generate" onClick={() => navigate('/classroom')}>Вернуться</button>
+          </div>
+        </div>
+      )
+    }
+
+    return (
+      <div className="page-container">
+        <div style={{ marginBottom: '2rem' }}>
+          <button onClick={() => navigate('/classroom')} style={{ background: 'none', border: 'none', color: '#4f46e5', cursor: 'pointer', fontSize: '0.9rem', marginBottom: '1rem', padding: 0 }}>
+            ← Назад к управлению группами
+          </button>
+          <h1>{classroom.name}</h1>
+          <p style={{ color: '#64748b', marginTop: '0.5rem' }}>Код приглашения: <strong>{classroom.invite_code}</strong></p>
+        </div>
+
+        <div style={{ display: 'flex', gap: '1rem', marginBottom: '2rem', flexWrap: 'wrap' }}>
+          <Link to={`/classroom/${classroom.id}/analytics`} className="btn-generate" style={{ textDecoration: 'none', width: 'auto', padding: '0.8rem 1.5rem', margin: 0 }}>
+            📊 Аналитика группы
+          </Link>
+          <button onClick={() => navigate('/classroom')} className="btn-nav btn-back">
+            ✏️ Управление
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  // MANAGEMENT VIEW: Show when /classroom (no :id)
 
   return (
     <div className="dashboard page-container">

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+﻿import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import '../styles/pages.css'
 
@@ -67,7 +67,6 @@ export default function TeacherDashboard({ user }) {
 
       {error && <div style={{ padding: '1rem', background: '#fef2f2', color: '#ef4444', borderRadius: '12px', marginBottom: '1.5rem' }}>{error}</div>}
 
-      {/* Quick actions */}
       <div style={{ display: 'flex', gap: '1rem', marginBottom: '2rem', flexWrap: 'wrap' }}>
         <Link to="/create-test" className="btn-generate" style={{ textDecoration: 'none', width: 'auto', padding: '0.8rem 1.5rem', display: 'inline-flex', margin: 0 }}>
           ➕ Создать материал
@@ -77,11 +76,9 @@ export default function TeacherDashboard({ user }) {
         </Link>
       </div>
 
-      {/* Teacher's content */}
       <section style={{ marginBottom: '2.5rem' }}>
         <div className="section-header">
           <h2 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>📚 Ваши материалы</h2>
-          <span style={{ color: '#64748b', fontSize: '0.9rem' }}>Нажмите, чтобы открыть конспект и тесты</span>
         </div>
 
         {content.length === 0 ? (
@@ -95,7 +92,6 @@ export default function TeacherDashboard({ user }) {
         )}
       </section>
 
-      {/* Classrooms */}
       <section>
         <div className="section-header">
           <h2 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>🏫 Ваши группы</h2>
@@ -109,20 +105,17 @@ export default function TeacherDashboard({ user }) {
         ) : (
           <div className="classes-grid">
             {classrooms.map(cls => (
-              <div key={cls.id} className="content-card" style={{ padding: '1.5rem' }}>
+              <Link key={cls.id} to={`/classroom/${cls.id}`} className="content-card" style={{ padding: '1.5rem', textDecoration: 'none', color: 'inherit', cursor: 'pointer' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.8rem' }}>
                   <h3 style={{ margin: 0, fontSize: '1.1rem', color: '#1e293b' }}>{cls.name}</h3>
                   <span style={{ background: '#e0e7ff', color: '#4338ca', padding: '0.2rem 0.6rem', borderRadius: '20px', fontSize: '0.8rem', fontWeight: 'bold' }}>
                     {cls.member_count || 0} уч.
                   </span>
                 </div>
-                <div style={{ color: '#94a3b8', fontSize: '0.85rem', marginBottom: '1rem' }}>
+                <div style={{ color: '#94a3b8', fontSize: '0.85rem' }}>
                   Код: <strong style={{ color: '#475569' }}>{cls.invite_code}</strong>
                 </div>
-                <Link to={`/classroom/${cls.id}/analytics`} className="btn-nav btn-back" style={{ textDecoration: 'none', textAlign: 'center', padding: '0.6rem', fontSize: '0.85rem' }}>
-                  📊 Аналитика группы
-                </Link>
-              </div>
+              </Link>
             ))}
           </div>
         )}
@@ -130,7 +123,6 @@ export default function TeacherDashboard({ user }) {
     </div>
   )
 }
-
 
 function ContentCard({ item }) {
   const statusMap = {

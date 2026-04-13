@@ -59,9 +59,10 @@ function App() {
             <Route path="/create-test" element={<CreateTest />} />
             <Route path="/test/:id" element={<TestTaking />} />
             <Route path="/results/:id" element={<TestResults />} />
-            <Route path="/classroom" element={<Classroom user={currentUser} />} />
             <Route path="/content/:id" element={<ContentDetail />} />
             <Route path="/classroom/:id/analytics" element={<ClassroomAnalytics />} />
+            <Route path="/classroom/:id" element={<Classroom user={currentUser} />} />
+            <Route path="/classroom" element={<Classroom user={currentUser} />} />
             <Route path="*" element={<Navigate to={isTeacher ? '/teacher' : '/'} />} />
           </Routes>
         </main>

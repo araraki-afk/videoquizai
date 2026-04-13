@@ -168,6 +168,9 @@ export default function TestTaking() {
             <p>✓ Вы можете вернуться к предыдущему вопросу</p>
             <p>✓ После последнего вопроса тест будет отправлен</p>
             <p>✓ Результат и обратная связь будут показаны сразу</p>
+            {!attemptStatus?.unlimited && (
+              <p style={{color: "#ef4444", fontWeight: "bold", marginTop: "1rem"}}>⚠ Осталось попыток: {attemptStatus?.remaining}</p>
+            )}
             {!attemptStatus?.unlimited && <p style={{ color: '#ef4444', fontWeight: '500' }}>⚠ Попыток: {attemptStatus?.remaining || 0}</p>}
           </div>
 

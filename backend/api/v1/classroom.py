@@ -270,13 +270,14 @@ def assign_content(
         classroom_id=cr.id,
         content_id=content.id,
         quiz_difficulty=body.quiz_difficulty,
+        max_attempts=body.max_attempts,
         assigned_by=teacher.id,
     )
     db.add(cc)
     db.commit()
     db.refresh(cc)
 
-    _generate_classroom_quiz(db, content, body.quiz_difficulty, cr.id)
+    _generate_classroom_quiz(db, content, body.quiz_difficulty, body.max_attempts)
 
     return ClassroomContentResponse(
         id=cc.id, content_id=content.id,
@@ -284,16 +285,17 @@ def assign_content(
         content_type=content.content_type.value,
         content_status=content.status.value,
         quiz_difficulty=cc.quiz_difficulty,
+        max_attempts=cc.max_attempts,
         assigned_at=cc.assigned_at,
     )
 
 
-def _generate_classroom_quiz(db: Session, content: Content, difficulty: str, classroom_id: int):
+def _generate_classroom_quiz(db: Session, content: Content, difficulty: str, max_attempts: int = 3):
     if content.status != ProccesingStatus.done:
         return
     try:
         from tasks.agents.quiz_agent import generate_classroom_quiz
-        generate_classroom_quiz.delay(content.id, difficulty, classroom_id)
+        generate_classroom_quiz.delay(content.id, difficulty, max_attempts)
     except Exception:
         pass
 
