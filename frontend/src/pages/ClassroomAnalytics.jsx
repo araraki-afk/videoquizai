@@ -24,7 +24,6 @@ export default function ClassroomAnalytics() {
         if (!res.ok) throw new Error('Ошибка загрузки')
         const result = await res.json()
         setData(result)
-        // Auto-select first test
         if (result.attempts?.length > 0) {
           const firstTest = result.attempts[0].quiz_title
           setSelectedTest(firstTest)
@@ -52,7 +51,7 @@ export default function ClassroomAnalytics() {
         <div className="content-card" style={{ textAlign: 'center', padding: '3rem' }}>
           <h2>Ошибка</h2>
           <p style={{ color: '#64748b' }}>{error || 'Данные не загружены'}</p>
-          <button className="btn-generate" onClick={() => navigate(-1)}>Назад</button>
+          <button className="btn-generate" onClick={() => navigate(`/classroom/${id}`)}>Назад</button>
         </div>
       </div>
     )
@@ -68,12 +67,24 @@ export default function ClassroomAnalytics() {
   })
 
   const tests = Object.keys(attemptsByTest)
-  const currentTestAttempts = selectedTest ? attemptsByTest[selectedTest] : []
+  const currentTestAttempts = selectedTest ? attemptsByTest[selectedTest] || [] : []
 
-  // Get student details
-  const currentStudentAttempts = selectedStudent
-    ? currentTestAttempts.filter(a => a.student_name === selectedStudent)
-    : []
+  // Group current test attempts by student
+  const studentMap = {}
+  currentTestAttempts.forEach(a => {
+    if (!studentMap[a.student_name]) {
+      studentMap[a.student_name] = {
+        name: a.student_name,
+        email: a.student_email,
+        attempts: [],
+      }
+    }
+    studentMap[a.student_name].attempts.push(a)
+  })
+  const students = Object.values(studentMap)
+
+  // Get selected student's data
+  const selectedStudentData = selectedStudent ? studentMap[selectedStudent] : null
 
   const scoreColor = (s) => s >= 70 ? '#10b981' : s >= 40 ? '#f59e0b' : '#ef4444'
 
@@ -82,7 +93,7 @@ export default function ClassroomAnalytics() {
       {/* Header */}
       <div className="dashboard-header" style={{ marginBottom: '2rem' }}>
         <div>
-          <button onClick={() => navigate(-1)} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.8)', cursor: 'pointer', fontSize: '0.9rem', marginBottom: '0.3rem', padding: 0 }}>
+          <button onClick={() => navigate(`/classroom/${id}`)} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.8)', cursor: 'pointer', fontSize: '0.9rem', marginBottom: '0.3rem', padding: 0 }}>
             ← Назад
           </button>
           <h1>📊 Аналитика: {data.classroom_name}</h1>
@@ -91,6 +102,10 @@ export default function ClassroomAnalytics() {
           <div className="stat">
             <span className="stat-value">{data.total_students}</span>
             <span className="stat-label">Студентов</span>
+          </div>
+          <div className="stat">
+            <span className="stat-value">{tests.length}</span>
+            <span className="stat-label">Тестов</span>
           </div>
           <div className="stat">
             <span className="stat-value">{data.total_attempts}</span>
@@ -132,119 +147,136 @@ export default function ClassroomAnalytics() {
             ))}
           </div>
 
-          {/* Student list for selected test */}
-          {selectedTest && !selectedStudent && (
-            <div className="content-card" style={{ padding: '1.5rem', marginBottom: '1.5rem' }}>
-              <h3 style={{ margin: '0 0 1rem' }}>👥 Результаты студентов в тесте "{selectedTest}"</h3>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
-                {currentTestAttempts.length === 0 ? (
-                  <p style={{ color: '#94a3b8' }}>Нет результатов для этого теста</p>
-                ) : (
-                  currentTestAttempts.map((attempt, i) => (
-                    <button
-                      key={i}
-                      onClick={() => setSelectedStudent(attempt.student_name)}
-                      style={{
-                        padding: '1rem',
-                        background: '#f8fafc',
-                        borderRadius: '8px',
-                        cursor: 'pointer',
-                        borderLeft: `4px solid ${scoreColor(attempt.score)}`,
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center',
-                        transition: 'background 0.2s',
-                        border: 'none',
-                        textAlign: 'left',
-                      }}
-                      onMouseEnter={(e) => e.currentTarget.style.background = '#f1f5f9'}
-                      onMouseLeave={(e) => e.currentTarget.style.background = '#f8fafc'}
-                    >
-                      <div>
-                        <div style={{ fontWeight: '600', color: '#1e293b' }}>{attempt.student_name}</div>
-                        <div style={{ fontSize: '0.8rem', color: '#94a3b8' }}>{attempt.student_email}</div>
-                      </div>
-                      <div style={{ textAlign: 'right' }}>
-                        <div style={{ fontSize: '1.3rem', fontWeight: '700', color: scoreColor(attempt.score) }}>
-                          {attempt.score?.toFixed(0)}%
+          {/* Student tabs + content area */}
+          {selectedTest && (
+            <div style={{ display: 'flex', gap: '1.5rem', alignItems: 'flex-start', flexWrap: 'wrap' }}>
+              {/* Student sidebar tabs */}
+              <div style={{ minWidth: '220px', width: '220px', flexShrink: 0 }}
+                className="analytics-student-sidebar"
+              >
+                <div className="content-card" style={{ padding: '0.5rem' }}>
+                  <h4 style={{ margin: '0.8rem 0.8rem 0.5rem', color: '#64748b', fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                    👥 Прошли тест ({students.length})
+                  </h4>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                    {students.map(s => {
+                      const bestScore = Math.max(...s.attempts.map(a => a.score ?? 0))
+                      const isActive = selectedStudent === s.name
+                      return (
+                        <button
+                          key={s.name}
+                          onClick={() => setSelectedStudent(isActive ? null : s.name)}
+                          style={{
+                            padding: '0.7rem 0.8rem',
+                            background: isActive ? '#eef2ff' : 'transparent',
+                            borderRadius: '6px',
+                            cursor: 'pointer',
+                            border: 'none',
+                            textAlign: 'left',
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                            transition: 'background 0.15s',
+                            width: '100%',
+                          }}
+                          onMouseEnter={(e) => { if (!isActive) e.currentTarget.style.background = '#f8fafc' }}
+                          onMouseLeave={(e) => { if (!isActive) e.currentTarget.style.background = isActive ? '#eef2ff' : 'transparent' }}
+                        >
+                          <div style={{ minWidth: 0 }}>
+                            <div style={{ fontWeight: isActive ? '600' : '500', color: isActive ? '#4f46e5' : '#1e293b', fontSize: '0.9rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                              {s.name}
+                            </div>
+                            <div style={{ fontSize: '0.75rem', color: '#94a3b8' }}>
+                              {s.attempts.length} {s.attempts.length === 1 ? 'попытка' : 'попыток'}
+                            </div>
+                          </div>
+                          <span style={{ fontWeight: '700', color: scoreColor(bestScore), fontSize: '0.9rem', marginLeft: '0.5rem', flexShrink: 0 }}>
+                            {bestScore.toFixed(0)}%
+                          </span>
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+              </div>
+
+              {/* Student detail area */}
+              <div style={{ flex: 1, minWidth: '280px' }}>
+                {!selectedStudent ? (
+                  <div className="content-card" style={{ padding: '2rem', textAlign: 'center' }}>
+                    <p style={{ color: '#94a3b8' }}>Нажмите на студента для просмотра деталей</p>
+                  </div>
+                ) : selectedStudentData ? (
+                  <div className="content-card" style={{ padding: '1.5rem' }}>
+                    <div style={{ marginBottom: '1.5rem' }}>
+                      <h3 style={{ margin: '0 0 0.2rem' }}>{selectedStudentData.name}</h3>
+                      <p style={{ margin: 0, color: '#94a3b8', fontSize: '0.85rem' }}>{selectedStudentData.email}</p>
+                    </div>
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                      {selectedStudentData.attempts.map((attempt, i) => (
+                        <div
+                          key={i}
+                          style={{
+                            padding: '1rem',
+                            background: '#f8fafc',
+                            borderRadius: '8px',
+                            borderLeft: `4px solid ${scoreColor(attempt.score)}`,
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                            flexWrap: 'wrap',
+                            gap: '0.5rem',
+                          }}
+                        >
+                          <div>
+                            <div style={{ fontSize: '0.85rem', color: '#64748b' }}>
+                              Попытка {selectedStudentData.attempts.length - i}
+                            </div>
+                            <div style={{ fontSize: '0.8rem', color: '#94a3b8', marginTop: '0.2rem' }}>
+                              {new Date(attempt.created_at).toLocaleString('ru-RU')}
+                            </div>
+                          </div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                            <span style={{ fontSize: '1.3rem', fontWeight: '700', color: scoreColor(attempt.score) }}>
+                              {attempt.score?.toFixed(0)}%
+                            </span>
+                            <button
+                              onClick={() => window.open(`/results/${attempt.attempt_id}`, '_blank')}
+                              style={{
+                                padding: '0.5rem 0.8rem',
+                                background: '#4f46e5',
+                                color: 'white',
+                                border: 'none',
+                                borderRadius: '6px',
+                                cursor: 'pointer',
+                                fontSize: '0.8rem',
+                              }}
+                            >
+                              📖 Детали
+                            </button>
+                          </div>
                         </div>
-                        <div style={{ fontSize: '0.75rem', color: '#94a3b8' }}>
-                          {new Date(attempt.created_at).toLocaleDateString('ru-RU')}
-                        </div>
-                      </div>
-                    </button>
-                  ))
-                )}
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
               </div>
             </div>
           )}
 
-          {/* Student details for selected student + test */}
-          {selectedStudent && currentStudentAttempts.length > 0 && (
-            <div className="content-card" style={{ padding: '1.5rem' }}>
-              <button
-                onClick={() => setSelectedStudent(null)}
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  color: '#4f46e5',
-                  cursor: 'pointer',
-                  fontSize: '0.9rem',
-                  marginBottom: '1rem',
-                  padding: 0,
-                }}
-              >
-                ← Назад к студентам
-              </button>
-              
-              <h3 style={{ margin: '0 0 1rem' }}>
-                {selectedStudent} — {selectedTest}
-              </h3>
-
-              {currentStudentAttempts.map((attempt, i) => (
-                <div key={i} style={{ borderTop: i > 0 ? '1px solid #e2e8f0' : 'none', paddingTop: i > 0 ? '1rem' : 0, marginTop: i > 0 ? '1rem' : 0 }}>
-                  <div style={{ marginBottom: '1rem' }}>
-                    <div style={{ fontSize: '0.9rem', color: '#64748b' }}>
-                      {new Date(attempt.created_at).toLocaleString('ru-RU')}
-                    </div>
-                    <div style={{ fontSize: '1.5rem', fontWeight: '700', color: scoreColor(attempt.score), marginTop: '0.3rem' }}>
-                      {attempt.score?.toFixed(0)}%
-                    </div>
-                  </div>
-                  
-                  {/* Fetch and show feedback/details */}
-                  <p style={{ color: '#94a3b8', fontSize: '0.9rem' }}>
-                    ID попытки: {attempt.attempt_id}
-                  </p>
-                  <button
-                    onClick={() => window.open(`/results/${attempt.attempt_id}`, '_blank')}
-                    style={{
-                      padding: '0.6rem 1rem',
-                      background: '#4f46e5',
-                      color: 'white',
-                      border: 'none',
-                      borderRadius: '6px',
-                      cursor: 'pointer',
-                      fontSize: '0.85rem',
-                      marginTop: '0.5rem',
-                    }}
-                  >
-                    📖 Посмотреть детали
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* Problem topics */}
+          {/* Problem topics with student count */}
           {data.weak_topics?.length > 0 && (
             <div className="content-card" style={{ padding: '1.5rem', marginTop: '1.5rem' }}>
               <h3 style={{ margin: '0 0 1rem' }}>🔍 Проблемные темы</h3>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
                 {data.weak_topics.map((t, i) => (
-                  <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '0.8rem 1rem', background: '#fef2f2', borderRadius: '8px', borderLeft: '4px solid #ef4444' }}>
+                  <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.8rem 1rem', background: '#fef2f2', borderRadius: '8px', borderLeft: '4px solid #ef4444', flexWrap: 'wrap', gap: '0.5rem' }}>
                     <span style={{ fontWeight: '500', color: '#1e293b' }}>{t.topic}</span>
-                    <span style={{ color: '#64748b', fontSize: '0.85rem' }}>❌ {t.error_count} ошибок</span>
+                    <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+                      <span style={{ color: '#64748b', fontSize: '0.85rem' }}>👥 {t.student_count} {t.student_count === 1 ? 'студент' : 'студентов'}</span>
+                      <span style={{ color: '#64748b', fontSize: '0.85rem' }}>❌ {t.error_count} ошибок</span>
+                    </div>
                   </div>
                 ))}
               </div>

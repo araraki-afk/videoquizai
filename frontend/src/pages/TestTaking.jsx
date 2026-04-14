@@ -171,7 +171,6 @@ export default function TestTaking() {
             {!attemptStatus?.unlimited && (
               <p style={{color: "#ef4444", fontWeight: "bold", marginTop: "1rem"}}>⚠ Осталось попыток: {attemptStatus?.remaining}</p>
             )}
-            {!attemptStatus?.unlimited && <p style={{ color: '#ef4444', fontWeight: '500' }}>⚠ Попыток: {attemptStatus?.remaining || 0}</p>}
           </div>
 
           <button className="btn-generate" style={{ maxWidth: '300px', margin: '0 auto' }} onClick={() => setStarted(true)}>
@@ -198,7 +197,7 @@ export default function TestTaking() {
             </span>
             {attemptStatus && !attemptStatus.unlimited && (
               <span style={{ color: '#f59e0b', fontWeight: '500', fontSize: '0.85rem', display: 'block' }}>
-                Осталось: {attemptStatus.remaining - 1} попыток
+                Осталось: {attemptStatus.remaining} попыток
               </span>
             )}
           </div>

@@ -16,14 +16,50 @@ import './App.css'
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [currentUser, setCurrentUser] = useState(null)
+  const [isCheckingAuth, setIsCheckingAuth] = useState(true)
+
+  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 
   useEffect(() => {
-    const auth = localStorage.getItem('isAuthenticated')
-    const user = localStorage.getItem('currentUser')
-    if (auth && user) {
-      setIsAuthenticated(true)
-      setCurrentUser(JSON.parse(user))
+    const verifyAuth = async () => {
+      const auth = localStorage.getItem('isAuthenticated')
+      const user = localStorage.getItem('currentUser')
+      const token = localStorage.getItem('token')
+
+      if (!auth || !user || !token) {
+        setIsCheckingAuth(false)
+        return
+      }
+
+      try {
+        const res = await fetch(`${API_URL}/api/v1/auth/me`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        })
+        if (res.ok) {
+          const userData = await res.json()
+          const freshUser = {
+            email: userData.email,
+            name: userData.full_name,
+            role: userData.role,
+          }
+          localStorage.setItem('currentUser', JSON.stringify(freshUser))
+          setIsAuthenticated(true)
+          setCurrentUser(freshUser)
+        } else {
+          // Token expired or invalid — clear everything
+          localStorage.removeItem('isAuthenticated')
+          localStorage.removeItem('currentUser')
+          localStorage.removeItem('token')
+        }
+      } catch {
+        // Network error — trust localStorage as fallback
+        setIsAuthenticated(true)
+        setCurrentUser(JSON.parse(user))
+      } finally {
+        setIsCheckingAuth(false)
+      }
     }
+    verifyAuth()
   }, [])
 
   const handleLogout = () => {
@@ -32,6 +68,23 @@ function App() {
     localStorage.removeItem('token')
     setIsAuthenticated(false)
     setCurrentUser(null)
+  }
+
+  if (isCheckingAuth) {
+    return (
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', background: '#f8f9fa' }}>
+<div 
+  className="loading-spinner" 
+  style={{ 
+    width: '3rem', 
+    height: '3rem', 
+    border: '3px solid #e2e8f0', 
+    borderTopColor: '#6b3fa0', 
+    borderRadius: '50%', 
+    animation: 'spin 1s linear infinite' 
+  }}
+></div>      </div>
+    )
   }
 
   if (!isAuthenticated) {

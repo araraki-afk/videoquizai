@@ -169,6 +169,7 @@ def get_classroom(
                 content_type=content.content_type.value,
                 content_status=content.status.value,
                 quiz_difficulty=cc.quiz_difficulty,
+                max_attempts=cc.max_attempts,
                 assigned_at=cc.assigned_at,
             ))
 
@@ -413,6 +414,20 @@ def student_classroom_content(
         quizzes = db.query(Quiz).filter(
             Quiz.content_id == content.id, Quiz.is_validated == True
         ).all()
+        quiz_infos = []
+        for q in quizzes:
+            user_attempts = (
+                db.query(QuizAttempt)
+                .filter(QuizAttempt.quiz_id == q.id, QuizAttempt.user_id == current_user.id)
+                .count()
+            )
+            quiz_infos.append({
+                "id": q.id,
+                "title": q.title,
+                "question_count": len(q.questions),
+                "max_attempts": q.max_attempts,
+                "used_attempts": user_attempts,
+            })
         result.append({
             "content_id": content.id,
             "title": content.title,
@@ -420,9 +435,6 @@ def student_classroom_content(
             "status": content.status.value,
             "quiz_difficulty": cc.quiz_difficulty,
             "assigned_at": cc.assigned_at.isoformat() if cc.assigned_at else None,
-            "quizzes": [
-                {"id": q.id, "title": q.title, "question_count": len(q.questions)}
-                for q in quizzes
-            ],
+            "quizzes": quiz_infos,
         })
     return result

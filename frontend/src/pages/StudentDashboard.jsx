@@ -115,14 +115,35 @@ export default function StudentDashboard({ user }) {
                 {items.map(item => (
                   <div key={item.content_id} className="test-card content-card" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column' }}>
                     <h3 style={{ margin: '0 0 0.5rem', fontSize: '1.1rem', color: '#1e293b' }}>{item.title}</h3>
-                    <div style={{ color: '#64748b', fontSize: '0.85rem', marginBottom: '1rem', display: 'flex', gap: '0.8rem', flexWrap: 'wrap' }}>
+                    <div style={{ color: '#64748b', fontSize: '0.85rem', marginBottom: '0.5rem', display: 'flex', gap: '0.8rem', flexWrap: 'wrap' }}>
                       <span>{item.quiz_difficulty === 'easy' ? '🟢 Лёгкий' : item.quiz_difficulty === 'hard' ? '🔴 Сложный' : '🟡 Средний'}</span>
                       {item.quizzes.length > 0 && <span>📋 {item.quizzes[0].question_count} вопросов</span>}
                     </div>
+                    {/* Attempt info for limited tests */}
+                    {item.quizzes.length > 0 && item.quizzes[0].max_attempts != null && (
+                      <div style={{
+                        padding: '0.5rem 0.7rem',
+                        background: item.quizzes[0].used_attempts >= item.quizzes[0].max_attempts ? '#fef2f2' : '#fffbeb',
+                        borderRadius: '6px',
+                        fontSize: '0.8rem',
+                        fontWeight: '500',
+                        color: item.quizzes[0].used_attempts >= item.quizzes[0].max_attempts ? '#ef4444' : '#f59e0b',
+                        marginBottom: '0.5rem',
+                      }}>
+                        🔄 Попытки: {item.quizzes[0].used_attempts} / {item.quizzes[0].max_attempts}
+                        {item.quizzes[0].used_attempts >= item.quizzes[0].max_attempts && ' (исчерпаны)'}
+                      </div>
+                    )}
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: 'auto' }}>
                       <Link to={`/content/${item.content_id}`} className="btn-nav btn-back" style={{ textAlign: 'center', textDecoration: 'none', padding: '0.6rem' }}>📖 Читать конспект</Link>
                       {item.quizzes.length > 0 && (
-                        <Link to={`/test/${item.quizzes[0].id}`} className="btn-generate" style={{ textAlign: 'center', textDecoration: 'none', padding: '0.6rem', margin: 0 }}>Пройти тест 🚀</Link>
+                        item.quizzes[0].max_attempts != null && item.quizzes[0].used_attempts >= item.quizzes[0].max_attempts ? (
+                          <span style={{ textAlign: 'center', padding: '0.6rem', background: '#f1f5f9', borderRadius: '8px', color: '#94a3b8', fontSize: '0.9rem', fontWeight: '500' }}>
+                            🚫 Лимит попыток исчерпан
+                          </span>
+                        ) : (
+                          <Link to={`/test/${item.quizzes[0].id}`} className="btn-generate" style={{ textAlign: 'center', textDecoration: 'none', padding: '0.6rem', margin: 0 }}>Пройти тест 🚀</Link>
+                        )
                       )}
                     </div>
                   </div>

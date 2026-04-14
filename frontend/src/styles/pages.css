@@ -2659,4 +2659,85 @@
   .processing-actions .btn {
     width: 100%;
   }
+
+  /* Dashboard header */
+  .dashboard-header {
+    flex-direction: column;
+    padding: 20px;
+    gap: 1rem;
+    text-align: center;
+  }
+  .dashboard-header h1 {
+    font-size: 20px;
+  }
+  .header-stats {
+    gap: 15px;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+  .stat-value {
+    font-size: 22px;
+  }
+
+  /* Page container */
+  .page-container {
+    padding: 1rem;
+  }
+
+  /* Grids */
+  .tests-grid,
+  .classes-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  /* Section header */
+  .section-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.5rem;
+    margin-bottom: 16px;
+  }
+
+  /* Test card */
+  .test-card,
+  .content-card {
+    padding: 15px;
+  }
+
+  /* Test navigation */
+  .test-actions-footer {
+    flex-direction: column;
+    gap: 0.8rem;
+  }
+  .test-actions-footer .btn-nav {
+    width: 100%;
+    text-align: center;
+  }
+
+  /* Question card */
+  .question-text {
+    font-size: 1.1rem;
+  }
+  .question-card {
+    padding: 1.2rem;
+  }
+
+  /* Nav buttons */
+  .btn-nav {
+    padding: 0.7rem 1.5rem;
+    font-size: 0.9rem;
+  }
+
+  /* Results */
+  .results-container {
+    max-width: 100% !important;
+  }
+
+  /* Analytics sidebar on mobile */
+  .analytics-student-sidebar {
+    min-width: 100% !important;
+    width: 100% !important;
+    flex: 1 1 100% !important;
+  }
 }

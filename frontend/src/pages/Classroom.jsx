@@ -20,6 +20,10 @@ export default function Classroom({ user }) {
   const [inviteCode, setInviteCode] = useState('')
   const [joinMsg, setJoinMsg] = useState('')
 
+  // Classroom detail
+  const [classroomDetail, setClassroomDetail] = useState(null)
+  const [detailLoading, setDetailLoading] = useState(false)
+
   // Assign content
   const [assigningClassroomId, setAssigningClassroomId] = useState(null)
   const [myContent, setMyContent] = useState([])
@@ -54,6 +58,25 @@ export default function Classroom({ user }) {
   }
 
   useEffect(() => { fetchClassrooms() }, [])
+
+  useEffect(() => {
+    if (id) {
+      const fetchDetail = async () => {
+        setDetailLoading(true)
+        try {
+          const res = await fetch(`${API_URL}/api/v1/classroom/${id}`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+          })
+          if (res.ok) setClassroomDetail(await res.json())
+        } catch (err) {
+          // fall back to basic info
+        } finally {
+          setDetailLoading(false)
+        }
+      }
+      fetchDetail()
+    }
+  }, [id])
 
   const handleCreate = async (e) => {
     e.preventDefault()
@@ -140,6 +163,11 @@ export default function Classroom({ user }) {
       )
     }
 
+    const detail = classroomDetail
+    const studentMembers = detail?.members?.filter(m => m.role === 'student') || []
+    const teacherMembers = detail?.members?.filter(m => m.role === 'teacher') || []
+    const contents = detail?.contents || []
+
     return (
       <div className="page-container">
         <div style={{ marginBottom: '2rem' }}>
@@ -147,17 +175,99 @@ export default function Classroom({ user }) {
             ← Назад к управлению группами
           </button>
           <h1>{classroom.name}</h1>
-          <p style={{ color: '#64748b', marginTop: '0.5rem' }}>Код приглашения: <strong>{classroom.invite_code}</strong></p>
+          {classroom.description && (
+            <p style={{ color: '#64748b', marginTop: '0.3rem', fontSize: '1rem' }}>{classroom.description}</p>
+          )}
         </div>
 
+        {/* Stats row */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '1rem', marginBottom: '2rem' }}>
+          <div className="content-card" style={{ padding: '1.2rem', textAlign: 'center' }}>
+            <div style={{ fontSize: '1.8rem', fontWeight: '700', color: '#4f46e5' }}>{studentMembers.length}</div>
+            <div style={{ fontSize: '0.85rem', color: '#64748b' }}>Студентов</div>
+          </div>
+          <div className="content-card" style={{ padding: '1.2rem', textAlign: 'center' }}>
+            <div style={{ fontSize: '1.8rem', fontWeight: '700', color: '#10b981' }}>{contents.length}</div>
+            <div style={{ fontSize: '0.85rem', color: '#64748b' }}>Материалов</div>
+          </div>
+          <div className="content-card" style={{ padding: '1.2rem', textAlign: 'center' }}>
+            <div style={{ fontSize: '1rem', fontWeight: '600', color: '#475569', letterSpacing: '1px' }}>{classroom.invite_code}</div>
+            <div style={{ fontSize: '0.85rem', color: '#64748b', marginTop: '0.2rem' }}>Код приглашения</div>
+          </div>
+        </div>
+
+        {/* Action buttons */}
         <div style={{ display: 'flex', gap: '1rem', marginBottom: '2rem', flexWrap: 'wrap' }}>
-          <Link to={`/classroom/${classroom.id}/analytics`} className="btn-generate" style={{ textDecoration: 'none', width: 'auto', padding: '0.8rem 1.5rem', margin: 0 }}>
-            📊 Аналитика группы
-          </Link>
+          {isTeacher && (
+            <Link to={`/classroom/${classroom.id}/analytics`} className="btn-generate" style={{ textDecoration: 'none', width: 'auto', padding: '0.8rem 1.5rem', margin: 0 }}>
+              📊 Аналитика группы
+            </Link>
+          )}
           <button onClick={() => navigate('/classroom')} className="btn-nav btn-back">
             ✏️ Управление
           </button>
         </div>
+
+        {detailLoading ? (
+          <div style={{ display: 'flex', justifyContent: 'center', padding: '2rem' }}>
+            <div className="loading-spinner" style={{ borderColor: '#4f46e5', borderTopColor: 'transparent', width: '2rem', height: '2rem' }}></div>
+          </div>
+        ) : detail ? (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '1.5rem' }}>
+            {/* Members */}
+            <div className="content-card" style={{ padding: '1.5rem' }}>
+              <h3 style={{ margin: '0 0 1rem', fontSize: '1.1rem' }}>👥 Участники ({detail.members?.length || 0})</h3>
+              {teacherMembers.length > 0 && (
+                <div style={{ marginBottom: '1rem' }}>
+                  <div style={{ fontSize: '0.8rem', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '0.5rem' }}>Преподаватели</div>
+                  {teacherMembers.map(m => (
+                    <div key={m.id} style={{ padding: '0.6rem 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <div>
+                        <div style={{ fontWeight: '500', color: '#1e293b', fontSize: '0.9rem' }}>{m.full_name}</div>
+                        <div style={{ fontSize: '0.8rem', color: '#94a3b8' }}>{m.email}</div>
+                      </div>
+                      <span style={{ background: '#e0e7ff', color: '#4338ca', padding: '0.15rem 0.5rem', borderRadius: '12px', fontSize: '0.75rem', fontWeight: '600' }}>Преподаватель</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {studentMembers.length > 0 ? (
+                <div>
+                  <div style={{ fontSize: '0.8rem', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '0.5rem' }}>Студенты</div>
+                  {studentMembers.map(m => (
+                    <div key={m.id} style={{ padding: '0.6rem 0', borderBottom: '1px solid #f1f5f9' }}>
+                      <div style={{ fontWeight: '500', color: '#1e293b', fontSize: '0.9rem' }}>{m.full_name}</div>
+                      <div style={{ fontSize: '0.8rem', color: '#94a3b8' }}>{m.email}</div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p style={{ color: '#94a3b8', fontSize: '0.9rem' }}>Студенты пока не присоединились</p>
+              )}
+            </div>
+
+            {/* Assigned Content */}
+            <div className="content-card" style={{ padding: '1.5rem' }}>
+              <h3 style={{ margin: '0 0 1rem', fontSize: '1.1rem' }}>📚 Назначенные материалы ({contents.length})</h3>
+              {contents.length > 0 ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
+                  {contents.map(c => (
+                    <div key={c.id} style={{ padding: '0.8rem', background: '#f8fafc', borderRadius: '8px', borderLeft: `3px solid ${c.content_status === 'done' ? '#10b981' : '#f59e0b'}` }}>
+                      <div style={{ fontWeight: '500', color: '#1e293b', fontSize: '0.9rem' }}>{c.content_title}</div>
+                      <div style={{ display: 'flex', gap: '0.8rem', marginTop: '0.4rem', fontSize: '0.8rem', color: '#64748b', flexWrap: 'wrap' }}>
+                        <span>{c.quiz_difficulty === 'easy' ? '🟢 Лёгкий' : c.quiz_difficulty === 'hard' ? '🔴 Сложный' : '🟡 Средний'}</span>
+                        {c.max_attempts && <span>🔄 {c.max_attempts} попыток</span>}
+                        <span>📅 {new Date(c.assigned_at).toLocaleDateString('ru-RU')}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p style={{ color: '#94a3b8', fontSize: '0.9rem' }}>Материалы ещё не назначены</p>
+              )}
+            </div>
+          </div>
+        ) : null}
       </div>
     )
   }
