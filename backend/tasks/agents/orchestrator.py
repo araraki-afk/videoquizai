@@ -37,9 +37,7 @@ def run_pipeline(self, content_id: int):
 
     pipeline = chain(
         transcription_agent.s(content_id),
-        pause_pipeline.s(seconds=4), 
         topics_agent.s(),
-        pause_pipeline.s(seconds=4), 
         group (
             summary_agent.s(),
             quiz_agent.s()

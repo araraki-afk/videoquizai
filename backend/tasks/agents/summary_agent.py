@@ -6,7 +6,7 @@ from tasks.celery_app import celery
 from core.database import SessionLocal
 from models.content import Content, ProccesingStatus
 from models.transcript import Transcript, Summary
-from core.groq_client import ask_groq
+from core.gpt_client import ask_gpt
 
 @celery.task(bind=True, max_retries=2)
 def summary_agent(self, content_id: int) -> int:
@@ -50,7 +50,7 @@ def _generate_summary_wit_llm(text: str) -> str:
         excerpt = "\n\n[...]\n\n".join(parts)
     else:
         excerpt = text
-    return ask_groq(
+    return ask_gpt(
         system_prompt="""Ты — преподаватель, составляющий конспект лекции.
 Создай структурированный конспект на русском языке.
 

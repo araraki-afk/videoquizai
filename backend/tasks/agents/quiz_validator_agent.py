@@ -1,11 +1,13 @@
 """
 Агент валидации теста.
-Запускается после quiz_agent. Проверяет качество теста через Groq.
+Запускается после quiz_agent. Проверяет качество теста через gpt.
+Тест виден клиенту только после проверки, т.е quiz.is_validated=True
 """
 import json
 from tasks.celery_app import celery
 from core.database import SessionLocal
-from core.groq_client import ask_groq_json
+from core.gpt_client import ask_gpt_json
+from models.content import Content, ProccesingStatus
 from models.quiz import Quiz, Question
 from models.transcript import Summary
 
@@ -15,8 +17,17 @@ def quiz_validator_agent(self, quiz_id: int) -> dict:
     db = SessionLocal()
     try:
         quiz = db.query(Quiz).filter(Quiz.id == quiz_id).first()
-        if not quiz or not quiz.questions:
+        if not quiz:
             return {"status": "skipped", "reason": "quiz not found or empty"}
+
+        if not quiz.questions:
+            # test is empty
+            quiz.is_validated = True
+            content = db.query(Content).filter(Content.id == quiz.content_id).first()
+            if content:
+                content.status = ProccesingStatus.done
+            db.commit()
+            return {"status": "skipped", "reason": "quiz has no questions"}
 
         summary = db.query(Summary).filter(
             Summary.content_id == quiz.content_id
@@ -57,6 +68,13 @@ def quiz_validator_agent(self, quiz_id: int) -> dict:
                 question.correct_answer = item["new_answer"]
             if item.get("new_topic"):
                 question.topic_tag = item["new_topic"]
+
+        #put the status done
+        quiz.is_validated = True
+
+        content = db.query(Content).filter(Content.id == quiz.content_id).first()
+        if content:
+            content.status = ProccesingStatus.done        
         db.commit()
 
         report = {
@@ -75,7 +93,18 @@ def quiz_validator_agent(self, quiz_id: int) -> dict:
 
     except Exception as exc:
         print(f"[quiz_validator] Error: {exc}")
-        return {"status": "error", "reason": str(exc)}
+        #при ошибке валидации все равно отдаем тест - иначе зависание
+        try:
+            quiz = db.query(Quiz).filter(Quiz.id == quiz_id).first()
+            if quiz:
+                quiz.is_validated = True
+                content = db.query(Content).filter(Content.id == quiz.content_id).first()
+                if content:
+                    content.status = ProccesingStatus.done        
+                db.commit()
+        except Exception:
+            pass
+        raise self.retry(exc=exc)
     finally:
         db.close()
 
@@ -88,7 +117,7 @@ def _validate_with_llm(
     topics_str = ", ".join(declared_topics) if declared_topics else "не определены"
     questions_str = json.dumps(questions, ensure_ascii=False, indent=2)
 
-    result = ask_groq_json(
+    result = ask_gpt_json(
         system_prompt="""Ты — эксперт по педагогическому дизайну.
 Проверь качество теста и верни JSON:
 

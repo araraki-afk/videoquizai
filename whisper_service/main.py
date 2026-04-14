@@ -1,29 +1,30 @@
 """
-микросервис транскрипции
-принимает POST /transcribe, возвращает текст
+Микросервис транскрипции.
+Принимает POST /transcribe, возвращает текст.
 
-Изолирован от основа API
+Изолирован от основного API:
 - падение whisper не роняет весь бэкенд
 - модель загружается один раз при старте контейнера
 """
 import os
-import tempfile
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
 app = FastAPI(title="Whisper Service API", version="0.1.0")
 
-_model = None #model loads only once when container starts, not for every request!
+_model = None  # модель грузится один раз, а не на каждый запрос
+
 
 def get_model():
     global _model
     if _model is None:
         from faster_whisper import WhisperModel
         model_size = os.getenv("WHISPER_MODEL_SIZE", "small")
-        print(f"[whisper] Loading model {model_size}...")
+        print(f"[whisper] Loading model '{model_size}'...")
         _model = WhisperModel(model_size, device="cpu", compute_type="int8")
         print("[whisper] Model loaded")
     return _model
+
 
 class TranscribeRequest(BaseModel):
     content_type: str
@@ -39,71 +40,94 @@ class TranscribeResponse(BaseModel):
 def health_check():
     return {"status": "healthy"}
 
+
 @app.post("/transcribe", response_model=TranscribeResponse)
 def transcribe(body: TranscribeRequest):
     if body.content_type == "raw_text":
         return TranscribeResponse(text=body.source)
-    
-    audio_path = None
-    tmp_dir = None
 
     try:
         if body.content_type == "youtube_url":
-            audio_path, tmp_dir = _download_youtube(body.source)
+            # Для YouTube берём субтитры напрямую — без скачивания видео,
+            # без борьбы с DRM и PO Token
+            text = _get_youtube_transcript(body.source)
+            return TranscribeResponse(text=text)
         else:
+            # Для загруженных файлов используем Whisper
             audio_path = body.source
             if not os.path.exists(audio_path):
                 raise HTTPException(status_code=404, detail="Аудиофайл не найден")
-            
-        model = get_model()
-        segments, info = model.transcribe(audio_path, beam_size=5) #beam_size=5 - better quality, but slower. Можно вынести в настройки
-        text = " ".join(seg.text.strip() for seg in segments)
+            return _whisper_transcribe(audio_path)
 
-        return TranscribeResponse(
-            text=text,
-            duration_second=round(info.duration, 1)
-        )
     except HTTPException:
         raise
     except Exception as e:
+        print(f"[whisper] ERROR in transcribe: {type(e).__name__}: {e}")
         raise HTTPException(status_code=500, detail=f"Ошибка при транскрипции: {str(e)}")
-    finally:
-        #deleting temp files
-        if tmp_dir and os.path.exists(tmp_dir):
-            import shutil
-            shutil.rmtree(tmp_dir, ignore_errors=True)
 
-def _download_youtube(url: str) -> tuple[str, str]:
-    import yt_dlp
 
-    tmp_dir = tempfile.mkdtemp()
-    output_template = os.path.join(tmp_dir, "audio.%(ext)s")
+def _get_youtube_transcript(url: str) -> str:
+    """
+    Получает субтитры YouTube через youtube-transcript-api 1.x.
+    API v1.x: YouTubeTranscriptApi() — экземпляр, не статический класс.
+    """
+    import re
+    from youtube_transcript_api import YouTubeTranscriptApi
+    from youtube_transcript_api._errors import NoTranscriptFound, TranscriptsDisabled
 
-    ydl_opts = {
-        "format": "worstaudio/bestaudio/best",
-        "outtmpl": output_template,
-        "postprocessors": [{
-            "key": "FFmpegExtractAudio",
-            "preferredcodec": "mp3",
-        }],
-        "quiet": True,
-        "no_warnings": True,
-        # Без этого YouTube блокирует как бота
-        "http_headers": {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-        },
-        "extractor_args": {
-            "youtube": {
-                "player_client": ["android", "web"],
-            }
-        },
-    }
+    # Извлекаем video_id из любого формата URL
+    match = re.search(r"(?:v=|youtu\.be/|embed/|shorts/)([A-Za-z0-9_-]{11})", url)
+    if not match:
+        raise ValueError(f"Не удалось извлечь video_id из URL: {url}")
+    video_id = match.group(1)
 
-    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-        ydl.download([url])
+    print(f"[whisper] Getting transcript for video_id={video_id}")
 
-    audio_path = os.path.join(tmp_dir, "audio.mp3")
-    if not os.path.exists(audio_path):
-        raise RuntimeError("Не удалось скачать аудио с YouTube")
+    api = YouTubeTranscriptApi()
 
-    return audio_path, tmp_dir
+    try:
+        # Пробуем по приоритету: ru → en → любой доступный
+        for languages in (["ru"], ["en"], None):
+            try:
+                if languages is not None:
+                    fetched = api.fetch(video_id, languages=languages)
+                else:
+                    # Берём первый доступный язык
+                    transcript_list = api.list(video_id)
+                    first = next(iter(transcript_list))
+                    fetched = first.fetch()
+                    print(f"[whisper] Fallback to language: {first.language_code}")
+
+                # Собираем текст из сегментов
+                parts = []
+                for seg in fetched:
+                    t = seg.text if hasattr(seg, "text") else seg.get("text", "")
+                    if t and t.strip():
+                        parts.append(t.strip())
+
+                text = " ".join(parts)
+                if text.strip():
+                    print(f"[whisper] Transcript fetched: {len(text)} chars")
+                    return text
+
+            except NoTranscriptFound:
+                continue
+
+        raise RuntimeError("Субтитры не найдены ни на одном языке")
+
+    except TranscriptsDisabled:
+        raise RuntimeError(
+            "Субтитры отключены для этого видео. "
+            "Попробуйте другое видео или загрузите файл напрямую."
+        )
+
+
+def _whisper_transcribe(audio_path: str) -> TranscribeResponse:
+    """Транскрибирует аудиофайл через локальную модель Whisper."""
+    model = get_model()
+    segments, info = model.transcribe(audio_path, beam_size=5)
+    text = " ".join(seg.text.strip() for seg in segments)
+    return TranscribeResponse(
+        text=text,
+        duration_second=round(info.duration, 1),
+    )

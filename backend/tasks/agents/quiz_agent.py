@@ -9,7 +9,7 @@ from core.database import SessionLocal
 from models.content import Content, ProccesingStatus
 from models.transcript import Transcript, Summary
 from models.quiz import Quiz, Question
-from core.groq_client import ask_groq_json
+from core.gpt_client import ask_gpt_json
 
 import models.user
 import models.content
@@ -22,12 +22,8 @@ def quiz_agent(self, content_id: int) -> int:
     db = SessionLocal()
     try:
         content = db.query(Content).filter(Content.id == content_id).first()
-        transcript = db.query(Transcript).filter(
-            Transcript.content_id == content_id
-        ).first()
-        summary = db.query(Summary).filter(
-            Summary.content_id == content_id
-        ).first()
+        transcript = db.query(Transcript).filter(Transcript.content_id == content_id).first()
+        summary = db.query(Summary).filter(Summary.content_id == content_id).first()
 
         if not transcript:
             raise ValueError("Транскрипция не найдена")
@@ -35,7 +31,11 @@ def quiz_agent(self, content_id: int) -> int:
         topics = json.loads(summary.topics) if summary and summary.topics else []
         questions_data = _generate_questions_with_llm(transcript.text, topics)
 
-        quiz = Quiz(content_id=content_id, title=f"Тест: {content.title}")
+        quiz = Quiz(
+            content_id=content_id, 
+            title=f"Тест: {content.title}",
+            is_validated=False,
+            )
         db.add(quiz)
         db.flush()
 
@@ -49,7 +49,6 @@ def quiz_agent(self, content_id: int) -> int:
                 topic_tag=q.get("topic")
             ))
 
-        content.status = ProccesingStatus.done
         db.commit()
 
         from tasks.agents.quiz_validator_agent import quiz_validator_agent
@@ -72,7 +71,7 @@ def _generate_questions_with_llm(text: str, topics: list[str]) -> list[dict]:
     excerpt = text[:10000]
     topics_str = ", ".join(topics) if topics else "основные темы материала"
 
-    result = ask_groq_json(
+    result = ask_gpt_json(
         system_prompt="""Ты — преподаватель, составляющий тест по учебному материалу.
 Создай 10-12 вопросов разных типов.
 
