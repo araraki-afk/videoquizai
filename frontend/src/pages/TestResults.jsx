@@ -11,6 +11,31 @@ export default function TestResults() {
   const [isLoading, setIsLoading] = useState(!location.state);
   const [error, setError] = useState('');
 
+  const currentUser = JSON.parse(localStorage.getItem('currentUser') || '{}');
+  const isTeacher = currentUser.role === 'teacher';
+  const [canRetry, setCanRetry] = useState(false);
+
+  useEffect(() => {
+    if (isTeacher || !result || !result.quiz_id) return;
+
+    const checkAttempts = async () => {
+      try {
+        const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+        const token = localStorage.getItem('token');
+        const res = await fetch(`${API_URL}/api/v1/quiz/${result.quiz_id}/check-attempt`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setCanRetry(data.unlimited || data.remaining > 0);
+        }
+      } catch (err) {
+        console.error("Failed to fetch remaining attempts", err);
+      }
+    };
+    checkAttempts();
+  }, [result, isTeacher]);
+
   useEffect(() => {
     if (location.state) return; // already have data
 
@@ -25,6 +50,7 @@ export default function TestResults() {
         if (!res.ok) throw new Error('Не удалось загрузить результаты');
         const data = await res.json();
         setResult({
+          quiz_id: data.quiz_id,
           score: data.score || 0,
           total: 0,
           correct: 0,
@@ -141,9 +167,13 @@ export default function TestResults() {
           <button className="btn-generate" onClick={() => navigate('/')}>
             На главную
           </button>
-          <button className="btn-nav btn-back" onClick={() => navigate(-1)}>
-            Пройти ещё раз
-          </button>
+          
+          {/* Conditionally render the retry button */}
+          {!isTeacher && canRetry && (
+            <button className="btn-nav btn-back" onClick={() => navigate(-1)}>
+              Пройти ещё раз
+            </button>
+          )}
         </div>
       </div>
     </div>

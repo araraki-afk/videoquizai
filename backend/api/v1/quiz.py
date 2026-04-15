@@ -2,7 +2,7 @@ from fastapi import Depends, HTTPException, APIRouter
 from sqlalchemy.orm import Session
 from core.database import get_db
 from core.dependencies import get_current_user
-from models.user import User
+from models.user import User, UserRole
 from models.content import Content
 from models.quiz import Quiz, QuizAttempt
 from models.feedback import AttemptFeedback
@@ -76,13 +76,13 @@ def get_attempt_detail(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    attempt = (
-        db.query(QuizAttempt)
-        .filter(QuizAttempt.id == attempt_id, QuizAttempt.user_id == current_user.id)
-        .first()
-    )
+    attempt = db.query(QuizAttempt).filter(QuizAttempt.id == attempt_id).first()
+    
     if not attempt:
         raise HTTPException(status_code=404, detail="Попытка не найдена")
+    
+    if attempt.user_id != current_user.id and current_user.role != UserRole.teacher:
+        raise HTTPException(status_code=403, detail="Нет доступа к этой попытке")
 
     quiz = db.query(Quiz).filter(Quiz.id == attempt.quiz_id).first()
 
