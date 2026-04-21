@@ -11,11 +11,15 @@ import models.classroom
 
 Base.metadata.create_all(bind=engine)
 
-app = FastAPI(title="VideoQuiz API", version="0.3.0")
+app = FastAPI(title="VideoQuiz API", version="1.0.0")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://localhost:3000", "https://videoquizai.vercel.app/"],
+    allow_origins=[
+        "http://localhost:5173", 
+        "http://localhost:3000", 
+        "https://videoquizai.vercel.app" 
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
