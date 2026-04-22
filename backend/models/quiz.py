@@ -3,32 +3,32 @@ from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from core.database import Base
 
+
 class Quiz(Base):
     __tablename__ = "quizzes"
 
-    id = Column(Integer, primary_key=True)
+    id         = Column(Integer, primary_key=True)
     content_id = Column(Integer, ForeignKey("contents.id"), nullable=False)
-    title = Column(String, nullable=False)
+    title      = Column(String, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
-    #после валидации True, пока False не показываем
     is_validated = Column(Boolean, default=False, nullable=False)
 
-    content = relationship("Content", back_populates="quizzes")
-    questions = relationship("Question", back_populates="quiz", cascade="all, delete")
-    attempts = relationship("QuizAttempt", back_populates="quiz")
+    content   = relationship("Content",     back_populates="quizzes")
+    questions = relationship("Question",    back_populates="quiz", cascade="all, delete")
+    attempts  = relationship("QuizAttempt", back_populates="quiz")
 
 
 class Question(Base):
     __tablename__ = "questions"
 
-    id = Column(Integer, primary_key=True)
-    quiz_id = Column(Integer, ForeignKey("quizzes.id"), nullable=False)
-    text = Column(Text, nullable=False)
-    question_type = Column(String, nullable=False)
-    options = Column(JSON, nullable=True)           
-    correct_answer = Column(Text, nullable=False)   
-    topic_tag = Column(String, nullable=True)
+    id             = Column(Integer, primary_key=True)
+    quiz_id        = Column(Integer, ForeignKey("quizzes.id"), nullable=False)
+    text           = Column(Text, nullable=False)
+    question_type  = Column(String, nullable=False)
+    options        = Column(JSON, nullable=True)
+    correct_answer = Column(Text, nullable=False)
+    topic_tag      = Column(String, nullable=True)
 
     quiz = relationship("Quiz", back_populates="questions")
 
@@ -36,11 +36,11 @@ class Question(Base):
 class QuizAttempt(Base):
     __tablename__ = "quiz_attempts"
 
-    id = Column(Integer, primary_key=True)
-    quiz_id = Column(Integer, ForeignKey("quizzes.id"), nullable=False)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    score = Column(Float, nullable=True)
-    answers = Column(JSON, nullable=False)          
+    id         = Column(Integer, primary_key=True)
+    quiz_id    = Column(Integer, ForeignKey("quizzes.id"), nullable=False)
+    user_id    = Column(Integer, ForeignKey("users.id"),   nullable=False)
+    score      = Column(Float, nullable=True)
+    answers    = Column(JSON, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
-    quiz = relationship("Quiz", back_populates="attempts")  
+    quiz     = relationship("Quiz",            back_populates="attempts")

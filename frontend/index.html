@@ -525,6 +525,71 @@
     font-family: 'DM Sans', sans-serif;
   }
 
+  /* ── OPTION BUTTONS ──────────────────────────────────────── */
+  .options-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-bottom: 16px;
+  }
+  .option-btn {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    padding: 14px 18px;
+    background: var(--surface);
+    border: 2px solid var(--border);
+    border-radius: 12px;
+    cursor: pointer;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 15px;
+    color: var(--text);
+    text-align: left;
+    transition: all 0.2s ease;
+  }
+  .option-btn:hover {
+    border-color: var(--accent);
+    background: rgba(99, 102, 241, 0.05);
+  }
+  .option-btn.selected {
+    border-color: var(--accent);
+    background: rgba(99, 102, 241, 0.1);
+    box-shadow: 0 0 0 1px var(--accent);
+  }
+  .option-letter {
+    flex-shrink: 0;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 12px;
+    color: var(--text-muted);
+    transition: all 0.2s ease;
+  }
+  .option-btn.selected .option-letter {
+    background: var(--accent);
+    color: white;
+  }
+  .option-btn:hover .option-letter {
+    background: var(--accent);
+    color: white;
+  }
+  .question-type-badge {
+    display: inline-block;
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 6px;
+    background: var(--surface);
+    color: var(--text-muted);
+    border: 1px solid var(--border);
+    margin-bottom: 10px;
+  }
+
   /* ── ANALYTICS ──────────────────────────────────────────── */
   .topics-list { list-style: none; }
 
@@ -1481,31 +1546,89 @@ function renderQuestion() {
   const total = quizQuestions.length;
   const progress = ((currentQuestionIndex) / total) * 100;
 
+  const typeName = q.question_type === 'multiple_choice' ? 'Выбор ответа'
+                 : q.question_type === 'true_false' ? 'Верно / Неверно'
+                 : 'Открытый вопрос';
+
+  let answerHTML = '';
+
+  if (q.question_type === 'multiple_choice' && q.options && q.options.length > 0) {
+    const letters = ['А', 'Б', 'В', 'Г', 'Д', 'Е'];
+    answerHTML = `
+      <div class="options-list">
+        ${q.options.map((opt, i) => `
+          <button class="option-btn" onclick="selectOption(this, '${escapeHtml(opt)}')" data-value="${escapeHtml(opt)}">
+            <span class="option-letter">${letters[i] || i + 1}</span>
+            <span>${escapeHtml(opt)}</span>
+          </button>
+        `).join('')}
+      </div>
+      <button class="btn btn-primary" id="confirm-btn" onclick="submitAnswer()" disabled style="width:100%">Подтвердить ответ</button>
+    `;
+  } else if (q.question_type === 'true_false') {
+    answerHTML = `
+      <div class="options-list">
+        <button class="option-btn" onclick="selectOption(this, 'Верно')" data-value="Верно">
+          <span class="option-letter">✓</span>
+          <span>Верно</span>
+        </button>
+        <button class="option-btn" onclick="selectOption(this, 'Неверно')" data-value="Неверно">
+          <span class="option-letter">✗</span>
+          <span>Неверно</span>
+        </button>
+      </div>
+      <button class="btn btn-primary" id="confirm-btn" onclick="submitAnswer()" disabled style="width:100%">Подтвердить ответ</button>
+    `;
+  } else {
+    answerHTML = `
+      <div class="answer-input-wrap">
+        <input type="text" class="form-input" id="answer-input"
+          placeholder="Введите ответ..."
+          onkeydown="if(event.key==='Enter') submitAnswer()">
+        <button class="answer-submit" onclick="submitAnswer()">→</button>
+      </div>
+    `;
+  }
+
   document.getElementById('quiz-body').innerHTML = `
     <div class="quiz-progress">
       <div class="quiz-progress-fill" style="width:${progress}%"></div>
     </div>
     <div class="question-counter">Вопрос ${currentQuestionIndex + 1} из ${total}</div>
+    <span class="question-type-badge">${typeName}</span>
     <div class="question-text">${q.text}</div>
-    <div class="answer-input-wrap">
-      <input type="text" class="form-input" id="answer-input"
-        placeholder="Введите ответ..."
-        onkeydown="if(event.key==='Enter') submitAnswer()">
-      <button class="answer-submit" onclick="submitAnswer()">→</button>
-    </div>
+    ${answerHTML}
     <div style="margin-top:12px">
       <button class="btn btn-ghost btn-sm" onclick="skipQuestion()">Пропустить</button>
     </div>
   `;
 
-  setTimeout(() => document.getElementById('answer-input')?.focus(), 100);
+  if (q.question_type === 'open') {
+    setTimeout(() => document.getElementById('answer-input')?.focus(), 100);
+  }
+}
+
+let selectedOptionValue = '';
+
+function selectOption(btn, value) {
+  selectedOptionValue = value;
+  document.querySelectorAll('.option-btn').forEach(b => b.classList.remove('selected'));
+  btn.classList.add('selected');
+  const confirmBtn = document.getElementById('confirm-btn');
+  if (confirmBtn) confirmBtn.disabled = false;
 }
 
 function submitAnswer() {
-  const input = document.getElementById('answer-input');
-  const answer = input?.value?.trim() || '';
   const q = quizQuestions[currentQuestionIndex];
-  quizAnswers[q.id] = answer;
+
+  if (q.question_type === 'multiple_choice' || q.question_type === 'true_false') {
+    quizAnswers[q.id] = selectedOptionValue || '';
+    selectedOptionValue = '';
+  } else {
+    const input = document.getElementById('answer-input');
+    quizAnswers[q.id] = input?.value?.trim() || '';
+  }
+
   nextQuestion();
 }
 
