@@ -50,7 +50,7 @@ def _call_whisper(content: Content) -> str:
         )
         response.raise_for_status()
         return response.json()['text']
-    except httpx.RequestError as e:
+    except httpx.HTTPStatusError as e:
         detail = ""
         try:
             detail = e.response.json().get("detail","")
