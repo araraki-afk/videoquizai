@@ -51,7 +51,7 @@ export default function QuestionCard({ question, currentAnswer, onAnswerChange }
               value={currentAnswer || ''}
               onChange={(e) => onAnswerChange(id, e.target.value)}
             />
-            <p className="hint">Совет: пишите кратко и по существу (1-3 слова).</p>
+            <p className="hint">Совет: пишите по существу.</p>
           </div>
         )}
       </div>
