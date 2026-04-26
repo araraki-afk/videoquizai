@@ -864,6 +864,89 @@
 
   .history-row-clickable { cursor: pointer; transition: background 0.15s; }
   .history-row-clickable:hover { background: var(--surface2); }
+
+  /* ── CLASSROOM UI ─────────────────────────────────────── */
+  .classroom-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 20px;
+    margin-bottom: 12px;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+  .classroom-card:hover { border-color: var(--accent); background: var(--surface2); }
+  .classroom-icon {
+    width: 48px; height: 48px; border-radius: 12px;
+    background: linear-gradient(135deg, rgba(124,106,255,0.2), rgba(255,106,176,0.2));
+    display: flex; align-items: center; justify-content: center;
+    font-size: 22px; flex-shrink: 0;
+  }
+  .classroom-info { flex: 1; }
+  .classroom-name { font-size: 15px; font-weight: 600; margin-bottom: 2px; }
+  .classroom-meta { font-size: 12px; color: var(--text-muted); }
+  .classroom-badge {
+    padding: 4px 12px; border-radius: 999px;
+    font-size: 11px; font-weight: 500;
+    background: rgba(124,106,255,0.15); color: var(--accent);
+  }
+
+  .member-row {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 0; border-bottom: 1px solid var(--border);
+  }
+  .member-row:last-child { border-bottom: none; }
+  .member-info { display: flex; flex-direction: column; gap: 2px; }
+  .member-name { font-size: 14px; font-weight: 500; }
+  .member-email { font-size: 12px; color: var(--text-muted); }
+
+  .difficulty-selector {
+    display: flex; gap: 8px; margin-top: 8px;
+  }
+  .diff-btn {
+    padding: 6px 16px; border-radius: 8px;
+    border: 1px solid var(--border); background: transparent;
+    color: var(--text-muted); font-size: 13px;
+    cursor: pointer; transition: all 0.2s;
+    font-family: 'DM Sans', sans-serif;
+  }
+  .diff-btn.active { border-color: var(--accent); color: var(--accent); background: rgba(124,106,255,0.1); }
+  .diff-btn:hover { border-color: var(--accent); }
+
+  .analytics-grid {
+    display: grid; grid-template-columns: repeat(4, 1fr);
+    gap: 12px; margin-bottom: 24px;
+  }
+  @media (max-width: 900px) { .analytics-grid { grid-template-columns: repeat(2, 1fr); } }
+
+  .score-bar-wrap {
+    display: flex; align-items: center; gap: 12px;
+    padding: 8px 0;
+  }
+  .score-bar-label { font-size: 13px; min-width: 50px; color: var(--text-muted); }
+  .score-bar-track { flex: 1; height: 8px; background: var(--border); border-radius: 4px; overflow: hidden; }
+  .score-bar-fill { height: 100%; border-radius: 4px; transition: width 0.6s ease; }
+  .score-bar-count { font-size: 13px; min-width: 30px; text-align: right; color: var(--text-muted); }
+
+  .modal-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.6);
+    display: flex; align-items: center; justify-content: center;
+    z-index: 9000; animation: fadeIn 0.2s ease;
+  }
+  .modal-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius-lg); padding: 32px; width: 440px;
+    max-width: 90vw; position: relative;
+  }
+  .modal-close {
+    position: absolute; top: 12px; right: 16px;
+    background: none; border: none; color: var(--text-muted);
+    font-size: 20px; cursor: pointer;
+  }
+  .modal-close:hover { color: var(--text); }
 </style>
 </head>
 <body>
@@ -917,6 +1000,14 @@
         <label class="form-label">Пароль</label>
         <input type="password" id="reg-password" class="form-input" placeholder="••••••••">
       </div>
+      <div class="form-group">
+        <label class="form-label">Роль</label>
+        <div class="tabs" style="margin-bottom:0">
+          <button class="tab active" type="button" onclick="selectRole('student', this)">Студент</button>
+          <button class="tab" type="button" onclick="selectRole('teacher', this)">Преподаватель</button>
+        </div>
+        <input type="hidden" id="reg-role" value="student">
+      </div>
       <button class="btn btn-primary" onclick="register()" id="btn-register">
         Создать аккаунт
       </button>
@@ -941,7 +1032,7 @@
       <span class="nav-icon">↑</span> Загрузить
     </button>
     <button class="nav-item" onclick="showView('content')" id="nav-content">
-      <span class="nav-icon">≡</span> Материалы
+      <span class="nav-icon">≡</span> Мои материалы
     </button>
 
     <div class="nav-section">Обучение</div>
@@ -949,9 +1040,15 @@
       <span class="nav-icon">◈</span> Аналитика
     </button>
 
+    <!-- Classroom: видно обоим ролям -->
+    <div class="nav-section">Classroom</div>
+    <button class="nav-item" onclick="showView('classrooms')" id="nav-classrooms">
+      <span class="nav-icon">⊞</span> Группы
+    </button>
+
     <div class="sidebar-user" id="sidebar-user">
       <div class="user-name" id="user-display-name">—</div>
-      <div class="user-role">Студент</div>
+      <div class="user-role" id="user-display-role">Студент</div>
       <button class="btn btn-ghost btn-sm" style="margin-top:8px;width:100%" onclick="logout()">
         Выйти
       </button>
@@ -1060,7 +1157,7 @@
     <!-- ── CONTENT LIST ───────────────────────────────────── -->
     <div id="view-content" class="view">
       <div class="view-title">Мои материалы</div>
-      <div class="view-subtitle">Нажмите на материал чтобы посмотреть конспект и пройти тест</div>
+      <div class="view-subtitle">Ваши личные материалы. Нажмите чтобы посмотреть конспект и пройти тест</div>
       <div id="content-list"></div>
     </div>
 
@@ -1094,6 +1191,39 @@
       <div class="back-btn" onclick="showView('analytics')">← Назад к аналитике</div>
       <div class="view-title" id="attempt-title">Разбор попытки</div>
       <div id="attempt-body"></div>
+    </div>
+
+    <!-- ── CLASSROOMS LIST ────────────────────────────────── -->
+    <div id="view-classrooms" class="view">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+        <div class="view-title">Группы</div>
+        <button class="btn btn-primary btn-sm" id="btn-create-classroom" style="display:none" onclick="showCreateClassroom()">
+          + Создать группу
+        </button>
+      </div>
+      <div class="view-subtitle" id="classrooms-subtitle">Ваши учебные группы</div>
+      <div id="classrooms-list"></div>
+    </div>
+
+    <!-- ── CLASSROOM DETAIL ───────────────────────────────── -->
+    <div id="view-classroom-detail" class="view">
+      <div class="back-btn" onclick="showView('classrooms')">← Назад к группам</div>
+      <div class="view-title" id="classroom-detail-title">Группа</div>
+      <div id="classroom-detail-body"></div>
+    </div>
+
+    <!-- ── CLASSROOM ANALYTICS (teacher) ──────────────────── -->
+    <div id="view-classroom-analytics" class="view">
+      <div class="back-btn" id="classroom-analytics-back">← Назад</div>
+      <div class="view-title" id="classroom-analytics-title">Аналитика группы</div>
+      <div id="classroom-analytics-body"></div>
+    </div>
+
+    <!-- ── CLASSROOM CONTENT DETAIL (student) ─────────────── -->
+    <div id="view-classroom-content" class="view">
+      <div class="back-btn" id="classroom-content-back">← Назад</div>
+      <div class="view-title" id="classroom-content-title">Материал</div>
+      <div id="classroom-content-body"></div>
     </div>
 
   </main>
@@ -1172,10 +1302,17 @@ async function login() {
   }
 }
 
+function selectRole(role, btn) {
+  document.getElementById('reg-role').value = role;
+  btn.parentElement.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  btn.classList.add('active');
+}
+
 async function register() {
   const name = document.getElementById('reg-name').value;
   const email = document.getElementById('reg-email').value;
   const password = document.getElementById('reg-password').value;
+  const role = document.getElementById('reg-role').value;
   if (!name || !email || !password) return showAuthError('Заполните все поля');
 
   const btn = document.getElementById('btn-register');
@@ -1186,7 +1323,7 @@ async function register() {
     const r = await fetch(`${API}/auth/register`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password, full_name: name })
+      body: JSON.stringify({ email, password, full_name: name, role })
     });
     const data = await r.json();
     if (!r.ok) throw new Error(data.detail || 'Ошибка регистрации');
@@ -1219,8 +1356,20 @@ async function loadApp() {
     if (!r.ok) { logout(); return; }
     currentUser = await r.json();
     document.getElementById('user-display-name').textContent = currentUser.full_name;
+    document.getElementById('user-display-role').textContent =
+      currentUser.role === 'teacher' ? 'Преподаватель' : 'Студент';
     document.getElementById('dash-welcome').textContent =
       `Привет, ${currentUser.full_name}! Готовы учиться?`;
+
+    // Показать кнопку создания группы только преподавателям
+    const createBtn = document.getElementById('btn-create-classroom');
+    if (createBtn) {
+      createBtn.style.display = currentUser.role === 'teacher' ? 'inline-flex' : 'none';
+    }
+    document.getElementById('classrooms-subtitle').textContent =
+      currentUser.role === 'teacher'
+        ? 'Управляйте группами, назначайте материалы, смотрите аналитику'
+        : 'Группы, в которые вас добавили преподаватели';
 
     document.getElementById('page-auth').style.display = 'none';
     document.getElementById('page-app').style.display = 'flex';
@@ -1244,6 +1393,7 @@ function showView(name) {
   if (name === 'dashboard') loadDashboard();
   if (name === 'content') loadContentList();
   if (name === 'analytics') loadAnalytics();
+  if (name === 'classrooms') loadClassrooms();
 }
 
 // ── DASHBOARD ────────────────────────────────────────────────
@@ -1954,6 +2104,484 @@ async function openAttempt(attemptId) {
     renderFeedback(document.getElementById('attempt-feedback-container'), data.feedback);
   } catch(e) {
     body.innerHTML = `<div class="empty-state"><div class="empty-text">${escapeHtml(e.message)}</div></div>`;
+  }
+}
+
+// ── CLASSROOMS ───────────────────────────────────────────────
+let currentClassroomId = null;
+
+async function loadClassrooms() {
+  const el = document.getElementById('classrooms-list');
+  el.innerHTML = `<div style="text-align:center;padding:24px"><span class="spinner"></span></div>`;
+
+  try {
+    const r = await fetch(`${API}/classroom/my`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    const data = await r.json();
+
+    if (data.length === 0) {
+      el.innerHTML = `<div class="empty-state">
+        <div class="empty-icon">🏫</div>
+        <div class="empty-text">${currentUser?.role === 'teacher' ? 'У вас пока нет групп' : 'Вас ещё не добавили ни в одну группу'}</div>
+        <div class="empty-sub">${currentUser?.role === 'teacher' ? 'Создайте первую группу' : 'Попросите преподавателя добавить вас'}</div>
+      </div>`;
+    } else {
+      el.innerHTML = data.map(c => `
+        <div class="classroom-card" onclick="openClassroom(${c.id})">
+          <div class="classroom-icon">🎓</div>
+          <div class="classroom-info">
+            <div class="classroom-name">${escapeHtml(c.name)}</div>
+            <div class="classroom-meta">${c.member_count} студентов${c.description ? ' • ' + escapeHtml(c.description) : ''}</div>
+          </div>
+          <div class="classroom-badge">${c.member_count} чел.</div>
+        </div>
+      `).join('');
+    }
+  } catch(e) {
+    el.innerHTML = `<div class="empty-state"><div class="empty-text">Ошибка загрузки</div></div>`;
+  }
+}
+
+function showCreateClassroom() {
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
+  overlay.innerHTML = `
+    <div class="modal-card">
+      <button class="modal-close" onclick="this.closest('.modal-overlay').remove()">×</button>
+      <div style="font-family:'Syne',sans-serif;font-size:20px;font-weight:700;margin-bottom:20px">Новая группа</div>
+      <div class="form-group">
+        <label class="form-label">Название группы</label>
+        <input type="text" id="modal-cr-name" class="form-input" placeholder="Напр.: Математика 101">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Описание (опционально)</label>
+        <input type="text" id="modal-cr-desc" class="form-input" placeholder="Краткое описание">
+      </div>
+      <button class="btn btn-primary" onclick="createClassroom()">Создать</button>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+  setTimeout(() => document.getElementById('modal-cr-name')?.focus(), 100);
+}
+
+async function createClassroom() {
+  const name = document.getElementById('modal-cr-name')?.value?.trim();
+  const desc = document.getElementById('modal-cr-desc')?.value?.trim();
+  if (!name) return showToast('Введите название', 'error');
+
+  try {
+    const r = await fetch(`${API}/classroom/create`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ name, description: desc || null })
+    });
+    if (!r.ok) throw new Error((await r.json()).detail);
+    showToast('Группа создана!', 'success');
+    document.querySelector('.modal-overlay')?.remove();
+    loadClassrooms();
+  } catch(e) {
+    showToast(e.message, 'error');
+  }
+}
+
+async function openClassroom(id) {
+  currentClassroomId = id;
+  showView('classroom-detail');
+
+  const body = document.getElementById('classroom-detail-body');
+  body.innerHTML = `<div style="text-align:center;padding:48px"><span class="spinner"></span></div>`;
+
+  try {
+    const r = await fetch(`${API}/classroom/${id}`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    if (!r.ok) throw new Error((await r.json()).detail);
+    const data = await r.json();
+
+    document.getElementById('classroom-detail-title').textContent = data.name;
+    const isOwner = data.owner_id === currentUser?.id;
+
+    let html = '';
+
+    // ── Teacher view ──
+    if (isOwner) {
+      // Members card
+      const studentsOnly = data.members.filter(m => m.role === 'student');
+      html += `<div class="card">
+        <div class="card-title">👥 Студенты (${studentsOnly.length})</div>
+        ${studentsOnly.length > 0 ? studentsOnly.map(m => `
+          <div class="member-row">
+            <div class="member-info">
+              <div class="member-name">${escapeHtml(m.full_name)}</div>
+              <div class="member-email">${escapeHtml(m.email)}</div>
+            </div>
+            <button class="btn btn-danger btn-sm" onclick="removeMember(${id}, ${m.user_id})">Убрать</button>
+          </div>
+        `).join('') : '<div style="color:var(--text-muted);font-size:13px;padding:8px 0">Нет студентов</div>'}
+        <div style="margin-top:16px;display:flex;gap:8px">
+          <input type="email" id="add-member-email-${id}" class="form-input" placeholder="Email студента" style="flex:1">
+          <button class="btn btn-primary btn-sm" onclick="addMember(${id})">Добавить</button>
+        </div>
+      </div>`;
+
+      // Assign content card
+      html += `<div class="card">
+        <div class="card-title">📚 Назначенные материалы</div>
+        ${data.contents.length > 0 ? data.contents.map(c => `
+          <div class="content-item" style="cursor:default">
+            <div class="content-icon">${typeIcon(c.content_type)}</div>
+            <div class="content-info">
+              <div class="content-title">${escapeHtml(c.content_title)}</div>
+              <div class="content-meta">Сложность: ${difficultyLabel(c.quiz_difficulty)}</div>
+            </div>
+            ${statusBadge(c.content_status)}
+          </div>
+        `).join('') : '<div style="color:var(--text-muted);font-size:13px;padding:8px 0">Нет назначенных материалов</div>'}
+        <div style="margin-top:16px">
+          <button class="btn btn-secondary btn-sm" onclick="showAssignContent(${id})">+ Назначить материал</button>
+        </div>
+      </div>`;
+
+      // Analytics button
+      html += `<div style="margin-top:8px">
+        <button class="btn btn-primary" onclick="openClassroomAnalytics(${id})" style="width:100%">
+          📊 Аналитика группы
+        </button>
+      </div>`;
+
+    } else {
+      // ── Student view ──
+      html += `<div class="card">
+        <div class="card-title">📚 Назначенные материалы</div>
+        <div id="student-classroom-content-${id}">
+          <div style="text-align:center;padding:12px"><span class="spinner"></span></div>
+        </div>
+      </div>`;
+
+      // Load student content
+      loadStudentClassroomContent(id);
+    }
+
+    body.innerHTML = html;
+
+  } catch(e) {
+    body.innerHTML = `<div class="empty-state"><div class="empty-text">${escapeHtml(e.message)}</div></div>`;
+  }
+}
+
+function difficultyLabel(d) {
+  const map = { easy: '🟢 Лёгкий', medium: '🟡 Средний', hard: '🔴 Сложный' };
+  return map[d] || d;
+}
+
+async function addMember(classroomId) {
+  const input = document.getElementById(`add-member-email-${classroomId}`);
+  const email = input?.value?.trim();
+  if (!email) return showToast('Введите email', 'error');
+
+  try {
+    const r = await fetch(`${API}/classroom/${classroomId}/add-member`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ email })
+    });
+    if (!r.ok) throw new Error((await r.json()).detail);
+    showToast('Студент добавлен!', 'success');
+    input.value = '';
+    openClassroom(classroomId);
+  } catch(e) {
+    showToast(e.message, 'error');
+  }
+}
+
+async function removeMember(classroomId, userId) {
+  if (!confirm('Удалить участника из группы?')) return;
+  try {
+    const r = await fetch(`${API}/classroom/${classroomId}/member/${userId}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    if (!r.ok) throw new Error((await r.json()).detail);
+    showToast('Участник удалён', 'success');
+    openClassroom(classroomId);
+  } catch(e) {
+    showToast(e.message, 'error');
+  }
+}
+
+async function showAssignContent(classroomId) {
+  // Загружаем контент преподавателя
+  try {
+    const r = await fetch(`${API}/content/my`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    const contents = await r.json();
+    const doneContents = contents.filter(c => c.status === 'done');
+
+    if (doneContents.length === 0) {
+      showToast('Нет готовых материалов. Сначала загрузите контент.', 'warning');
+      return;
+    }
+
+    const overlay = document.createElement('div');
+    overlay.className = 'modal-overlay';
+    overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
+    overlay.innerHTML = `
+      <div class="modal-card">
+        <button class="modal-close" onclick="this.closest('.modal-overlay').remove()">×</button>
+        <div style="font-family:'Syne',sans-serif;font-size:20px;font-weight:700;margin-bottom:20px">Назначить материал</div>
+        <div class="form-group">
+          <label class="form-label">Выберите материал</label>
+          <select id="assign-content-select" class="form-input" style="cursor:pointer">
+            ${doneContents.map(c => `<option value="${c.id}">${escapeHtml(c.title)}</option>`).join('')}
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Сложность теста</label>
+          <div class="difficulty-selector">
+            <button class="diff-btn" onclick="selectDifficulty('easy', this)" type="button">🟢 Лёгкий</button>
+            <button class="diff-btn active" onclick="selectDifficulty('medium', this)" type="button">🟡 Средний</button>
+            <button class="diff-btn" onclick="selectDifficulty('hard', this)" type="button">🔴 Сложный</button>
+          </div>
+          <input type="hidden" id="assign-difficulty" value="medium">
+        </div>
+        <button class="btn btn-primary" onclick="assignContent(${classroomId})">Назначить</button>
+      </div>
+    `;
+    document.body.appendChild(overlay);
+  } catch(e) {
+    showToast('Ошибка загрузки материалов', 'error');
+  }
+}
+
+function selectDifficulty(diff, btn) {
+  document.getElementById('assign-difficulty').value = diff;
+  btn.parentElement.querySelectorAll('.diff-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+}
+
+async function assignContent(classroomId) {
+  const contentId = parseInt(document.getElementById('assign-content-select')?.value);
+  const difficulty = document.getElementById('assign-difficulty')?.value || 'medium';
+
+  try {
+    const r = await fetch(`${API}/classroom/${classroomId}/assign-content`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ content_id: contentId, quiz_difficulty: difficulty })
+    });
+    if (!r.ok) throw new Error((await r.json()).detail);
+    showToast('Материал назначен! Тест генерируется.', 'success');
+    document.querySelector('.modal-overlay')?.remove();
+    openClassroom(classroomId);
+  } catch(e) {
+    showToast(e.message, 'error');
+  }
+}
+
+// ── CLASSROOM ANALYTICS (teacher) ─────────────────────────────
+async function openClassroomAnalytics(classroomId) {
+  showView('classroom-analytics');
+  document.getElementById('classroom-analytics-back').onclick = () => openClassroom(classroomId);
+
+  const body = document.getElementById('classroom-analytics-body');
+  body.innerHTML = `<div style="text-align:center;padding:48px"><span class="spinner"></span></div>`;
+
+  try {
+    const r = await fetch(`${API}/classroom/${classroomId}/analytics`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    if (!r.ok) throw new Error((await r.json()).detail);
+    const data = await r.json();
+
+    document.getElementById('classroom-analytics-title').textContent = `Аналитика: ${data.classroom_name}`;
+
+    const avgColor = data.average_score >= 70 ? 'var(--success)' :
+                     data.average_score >= 40 ? 'var(--warning)' : 'var(--error)';
+
+    // Score distribution
+    const totalDist = (data.score_distribution['0-40'] || 0) + (data.score_distribution['40-70'] || 0) + (data.score_distribution['70-100'] || 0);
+    const distMax = Math.max(data.score_distribution['0-40'] || 0, data.score_distribution['40-70'] || 0, data.score_distribution['70-100'] || 0, 1);
+
+    const distHTML = totalDist > 0 ? `
+      <div class="score-bar-wrap">
+        <div class="score-bar-label" style="color:var(--error)">0-40%</div>
+        <div class="score-bar-track"><div class="score-bar-fill" style="width:${(data.score_distribution['0-40']||0)/distMax*100}%;background:var(--error)"></div></div>
+        <div class="score-bar-count">${data.score_distribution['0-40']||0}</div>
+      </div>
+      <div class="score-bar-wrap">
+        <div class="score-bar-label" style="color:var(--warning)">40-70%</div>
+        <div class="score-bar-track"><div class="score-bar-fill" style="width:${(data.score_distribution['40-70']||0)/distMax*100}%;background:var(--warning)"></div></div>
+        <div class="score-bar-count">${data.score_distribution['40-70']||0}</div>
+      </div>
+      <div class="score-bar-wrap">
+        <div class="score-bar-label" style="color:var(--success)">70-100%</div>
+        <div class="score-bar-track"><div class="score-bar-fill" style="width:${(data.score_distribution['70-100']||0)/distMax*100}%;background:var(--success)"></div></div>
+        <div class="score-bar-count">${data.score_distribution['70-100']||0}</div>
+      </div>
+    ` : '<div style="color:var(--text-muted);font-size:13px">Нет данных</div>';
+
+    // Weak topics
+    let weakHTML = '';
+    if (data.weak_topics && data.weak_topics.length > 0) {
+      const maxErr = Math.max(...data.weak_topics.map(t => t.error_count));
+      weakHTML = data.weak_topics.map(t => `
+        <li class="topic-item">
+          <span class="topic-name">${escapeHtml(t.topic)}</span>
+          <div class="topic-bar-wrap">
+            <div class="topic-bar" style="width:${t.error_count/maxErr*100}%"></div>
+          </div>
+          <span class="topic-errors">${t.error_count} ош. / ${t.student_count} студ.</span>
+        </li>
+      `).join('');
+    }
+
+    // Attempts table
+    let attemptsHTML = '';
+    if (data.attempts && data.attempts.length > 0) {
+      attemptsHTML = data.attempts.slice(0, 30).map(a => {
+        const color = (a.score||0) >= 70 ? 'var(--success)' : (a.score||0) >= 40 ? 'var(--warning)' : 'var(--error)';
+        const dateStr = new Date(a.created_at).toLocaleString('ru', {
+          day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit'
+        });
+        return `
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border)">
+            <div>
+              <div style="font-size:14px;font-weight:500">${escapeHtml(a.student_name)}</div>
+              <div style="font-size:12px;color:var(--text-muted)">${escapeHtml(a.quiz_title)} • ${dateStr}</div>
+            </div>
+            <div style="font-family:'Syne',sans-serif;font-size:18px;font-weight:700;color:${color}">${a.score ?? 0}%</div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    body.innerHTML = `
+      <div class="analytics-grid">
+        <div class="stat-card">
+          <div class="stat-value">${data.total_students}</div>
+          <div class="stat-label">Студентов</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value">${data.total_attempts}</div>
+          <div class="stat-label">Попыток</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value" style="color:${avgColor}">${data.average_score}%</div>
+          <div class="stat-label">Средний балл</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value">${data.weak_topics?.length || 0}</div>
+          <div class="stat-label">Слабых тем</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">📊 Распределение баллов</div>
+        ${distHTML}
+      </div>
+
+      ${weakHTML ? `<div class="card">
+        <div class="card-title">⚠️ Слабые темы группы</div>
+        <ul class="topics-list">${weakHTML}</ul>
+      </div>` : ''}
+
+      <div class="card">
+        <div class="card-title">📋 Попытки студентов</div>
+        ${attemptsHTML || '<div style="color:var(--text-muted);font-size:13px;padding:8px 0">Ещё нет попыток</div>'}
+      </div>
+    `;
+  } catch(e) {
+    body.innerHTML = `<div class="empty-state"><div class="empty-text">${escapeHtml(e.message)}</div></div>`;
+  }
+}
+
+// ── STUDENT: classroom content ────────────────────────────────
+async function loadStudentClassroomContent(classroomId) {
+  const el = document.getElementById(`student-classroom-content-${classroomId}`);
+  if (!el) return;
+
+  try {
+    const r = await fetch(`${API}/classroom/${classroomId}/content-for-student`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    const data = await r.json();
+
+    if (data.length === 0) {
+      el.innerHTML = '<div style="color:var(--text-muted);font-size:13px;padding:8px 0">Преподаватель ещё не назначил материалы</div>';
+      return;
+    }
+
+    el.innerHTML = data.map(c => `
+      <div class="content-item" onclick="openClassroomContentDetail(${classroomId}, ${c.content_id}, '${escapeHtml(c.title).replace(/'/g, "\\'")}')">
+        <div class="content-icon">${typeIcon(c.content_type)}</div>
+        <div class="content-info">
+          <div class="content-title">${escapeHtml(c.title)}</div>
+          <div class="content-meta">Сложность: ${difficultyLabel(c.quiz_difficulty)}${c.quizzes.length > 0 ? ' • ' + c.quizzes.length + ' тестов' : ''}</div>
+        </div>
+        ${statusBadge(c.status)}
+      </div>
+    `).join('');
+  } catch(e) {
+    el.innerHTML = '<div style="color:var(--text-muted);font-size:13px">Ошибка загрузки</div>';
+  }
+}
+
+async function openClassroomContentDetail(classroomId, contentId, title) {
+  showView('classroom-content');
+  document.getElementById('classroom-content-back').onclick = () => openClassroom(classroomId);
+  document.getElementById('classroom-content-title').textContent = title;
+
+  const body = document.getElementById('classroom-content-body');
+  body.innerHTML = `<div style="text-align:center;padding:48px"><span class="spinner"></span></div>`;
+
+  try {
+    const statusR = await fetch(`${API}/content/${contentId}/status`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    const status = await statusR.json();
+
+    if (status.status !== 'done') {
+      body.innerHTML = `<div class="card"><p style="color:var(--text-muted);font-size:14px">⏳ Материал обрабатывается</p></div>`;
+      return;
+    }
+
+    const [summaryR, quizzesR] = await Promise.all([
+      fetch(`${API}/content/${contentId}/summary`, { headers: { Authorization: `Bearer ${token}` } }),
+      fetch(`${API}/quiz/by-content/${contentId}`, { headers: { Authorization: `Bearer ${token}` } })
+    ]);
+
+    let summaryHTML = '';
+    if (summaryR.ok) {
+      const summary = await summaryR.json();
+      summaryHTML = `<div class="card">
+        <div class="card-title">📋 Конспект</div>
+        <div class="summary-text">${summary.text}</div>
+      </div>`;
+    }
+
+    let quizHTML = '';
+    if (quizzesR.ok) {
+      const quizzes = await quizzesR.json();
+      if (quizzes.length > 0) {
+        // Сохраняем classroomId для навигации после теста
+        currentContentId = contentId;
+        quizHTML = `<div class="card">
+          <div class="card-title">📝 Тесты</div>
+          ${quizzes.map(q => `
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 0;border-bottom:1px solid var(--border)">
+              <span style="font-size:14px">${escapeHtml(q.title)} <span style="color:var(--text-muted)">(${q.questions.length} вопросов)</span></span>
+              <button class="btn btn-secondary btn-sm" onclick="startQuiz(${q.id}, '${escapeHtml(q.title).replace(/'/g, "\\'")}')">Пройти тест</button>
+            </div>`).join('')}
+        </div>`;
+      }
+    }
+
+    body.innerHTML = summaryHTML + quizHTML;
+  } catch(e) {
+    body.innerHTML = `<div class="empty-state"><div class="empty-text">Ошибка загрузки</div></div>`;
   }
 }
 
