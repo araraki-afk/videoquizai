@@ -15,6 +15,12 @@ class Quiz(Base):
     is_validated = Column(Boolean, default=False, nullable=False)
     max_attempts = Column(Integer, nullable=True)
 
+    #classroom-specific copy of a quiz. NULL = teacher's draft (not assigned).
+    classroom_id = Column(Integer, ForeignKey("classrooms.id"), nullable=True)
+    #per-classroom deadline (UTC). Only meaningful when classroom_id is set.
+    deadline     = Column(DateTime(timezone=True), nullable=True)
+    source_quiz_id = Column(Integer, ForeignKey("quizzes.id"), nullable=True)
+
     content   = relationship("Content",     back_populates="quizzes")
     questions = relationship("Question",    back_populates="quiz", cascade="all, delete")
     attempts  = relationship("QuizAttempt", back_populates="quiz")

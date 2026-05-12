@@ -135,50 +135,10 @@ def _generate_questions_with_llm(text: str, topics: list[str], difficulty: str =
 
 
 @celery.task(bind=True, max_retries=2)
-def generate_classroom_quiz(self, content_id: int, difficulty: str = "medium", classroom_id: int = None) -> int:
-    """Генерирует тест с заданной сложностью для classroom."""
-    db = SessionLocal()
-    try:
-        content = db.query(Content).filter(Content.id == content_id).first()
-        transcript = db.query(Transcript).filter(Transcript.content_id == content_id).first()
-        summary = db.query(Summary).filter(Summary.content_id == content_id).first()
-
-        if not transcript:
-            raise ValueError("Транскрипция не найдена")
-
-        topics = json.loads(summary.topics) if summary and summary.topics else []
-        questions_data = _generate_questions_with_llm(transcript.text, topics, difficulty)
-
-        difficulty_labels = {"easy": "Лёгкий", "medium": "Средний", "hard": "Сложный"}
-        diff_label = difficulty_labels.get(difficulty, difficulty)
-
-        quiz = Quiz(
-            content_id=content_id,
-            title=f"Тест ({diff_label}): {content.title}",
-            is_validated=False,
-            max_attempts=max_attempts,
-        )
-        db.add(quiz)
-        db.flush()
-
-        for q in questions_data:
-            db.add(Question(
-                quiz_id=quiz.id,
-                text=q["text"],
-                question_type=q["type"],
-                options=q.get("options"),
-                correct_answer=q["answer"],
-                topic_tag=q.get("topic")
-            ))
-
-        db.commit()
-
-        from tasks.agents.quiz_validator_agent import quiz_validator_agent
-        quiz_validator_agent.delay(quiz.id)
-
-        return content_id
-
-    except Exception as exc:
-        raise self.retry(exc=exc)
-    finally:
-        db.close()
+def generate_classroom_quiz(self, content_id: int, difficulty: str = "medium", max_attempts: int | None = None, classroom_id: int | None = None) -> int:
+    """DEPRECATED. The previous implementation was buggy (used an undefined
+    `max_attempts` local) and is no longer called by the API; classroom
+    assignment now copies the validated draft quiz directly. This stub is
+    kept so any queued task from an older deploy doesn't crash the worker.
+    """
+    return content_id

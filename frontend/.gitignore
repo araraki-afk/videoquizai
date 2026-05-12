@@ -8,3 +8,7 @@
 backend/.venv/
 backend/__pycache__/
 backend./env
+
+node_modules/
+dist/
+.vite/

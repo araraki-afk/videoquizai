@@ -170,6 +170,7 @@ def get_classroom(
                 content_status=content.status.value,
                 quiz_difficulty=cc.quiz_difficulty,
                 max_attempts=cc.max_attempts,
+                deadline=cc.deadline,
                 assigned_at=cc.assigned_at,
             ))
 
@@ -247,6 +248,16 @@ def assign_content(
     db: Session = Depends(get_db),
     teacher: User = Depends(require_teacher),
 ):
+    """
+    Assign one of the teacher's content items to a classroom.
+
+    Behaviour:
+    - Records the assignment in `classroom_contents`.
+    - Copies the validated draft quiz for this content into a NEW classroom-
+      specific Quiz row (with classroom_id, max_attempts, deadline).
+      This guarantees each classroom has its own quiz and therefore its own
+      attempt counter — students no longer share attempts across classrooms.
+    """
     cr = _get_classroom_or_404(classroom_id, db)
     _require_owner(cr, teacher)
 
@@ -272,13 +283,22 @@ def assign_content(
         content_id=content.id,
         quiz_difficulty=body.quiz_difficulty,
         max_attempts=body.max_attempts,
+        deadline=body.deadline,
         assigned_by=teacher.id,
     )
     db.add(cc)
+    db.flush()
+
+    _copy_draft_quiz_to_classroom(
+        db=db,
+        content_id=content.id,
+        classroom_id=cr.id,
+        max_attempts=body.max_attempts,
+        deadline=body.deadline,
+    )
+
     db.commit()
     db.refresh(cc)
-
-    _generate_classroom_quiz(db, content, body.quiz_difficulty, body.max_attempts)
 
     return ClassroomContentResponse(
         id=cc.id, content_id=content.id,
@@ -287,18 +307,63 @@ def assign_content(
         content_status=content.status.value,
         quiz_difficulty=cc.quiz_difficulty,
         max_attempts=cc.max_attempts,
+        deadline=cc.deadline,
         assigned_at=cc.assigned_at,
     )
 
 
+def _copy_draft_quiz_to_classroom(
+    db: Session,
+    content_id: int,
+    classroom_id: int,
+    max_attempts: int | None,
+    deadline=None,
+) -> Quiz | None:
+    """Copy the teacher's draft quiz (classroom_id IS NULL) into a fresh
+    Quiz row attached to a specific classroom. If no validated draft exists,
+    the assignment still goes through and a copy will be created later when
+    the draft is ready (the teacher can re-assign or use the edit flow)."""
+    draft = (
+        db.query(Quiz)
+        .filter(
+            Quiz.content_id == content_id,
+            Quiz.classroom_id.is_(None),
+            Quiz.is_validated == True,  # noqa: E712
+        )
+        .order_by(Quiz.created_at.desc())
+        .first()
+    )
+    if not draft:
+        return None
+
+    copy = Quiz(
+        content_id=content_id,
+        title=draft.title,
+        is_validated=True,
+        classroom_id=classroom_id,
+        max_attempts=max_attempts,
+        deadline=deadline,
+        source_quiz_id=draft.id,
+    )
+    db.add(copy)
+    db.flush()
+
+    for q in draft.questions:
+        db.add(Question(
+            quiz_id=copy.id,
+            text=q.text,
+            question_type=q.question_type,
+            options=q.options,
+            correct_answer=q.correct_answer,
+            topic_tag=q.topic_tag,
+        ))
+    return copy
+
+
 def _generate_classroom_quiz(db: Session, content: Content, difficulty: str, max_attempts: int = 3):
-    if content.status != ProccesingStatus.done:
-        return
-    try:
-        from tasks.agents.quiz_agent import generate_classroom_quiz
-        generate_classroom_quiz.delay(content.id, difficulty, max_attempts)
-    except Exception:
-        pass
+    """DEPRECATED. Kept as a no-op for backward compatibility — the assign
+    flow now copies the validated draft directly."""
+    return None
 
 
 # ══════════════════════════════════════════════════════════
@@ -411,8 +476,14 @@ def student_classroom_content(
         content = db.query(Content).filter(Content.id == cc.content_id).first()
         if not content:
             continue
+        # Only quizzes that belong to THIS classroom — never the teacher's
+        # draft or another classroom's copy. This is what makes attempts
+        # per-classroom: each classroom has its own Quiz row, and
+        # QuizAttempt is keyed on quiz_id.
         quizzes = db.query(Quiz).filter(
-            Quiz.content_id == content.id, Quiz.is_validated == True
+            Quiz.content_id == content.id,
+            Quiz.classroom_id == cr.id,
+            Quiz.is_validated == True,  # noqa: E712
         ).all()
         quiz_infos = []
         for q in quizzes:
@@ -427,6 +498,7 @@ def student_classroom_content(
                 "question_count": len(q.questions),
                 "max_attempts": q.max_attempts,
                 "used_attempts": user_attempts,
+                "deadline": q.deadline.isoformat() if q.deadline else None,
             })
         result.append({
             "content_id": content.id,
@@ -435,6 +507,7 @@ def student_classroom_content(
             "status": content.status.value,
             "quiz_difficulty": cc.quiz_difficulty,
             "assigned_at": cc.assigned_at.isoformat() if cc.assigned_at else None,
+            "deadline": cc.deadline.isoformat() if cc.deadline else None,
             "quizzes": quiz_infos,
         })
     return result

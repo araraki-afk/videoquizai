@@ -10,6 +10,8 @@ import TestResults from './pages/TestResults'
 import Classroom from './pages/Classroom'
 import ContentDetail from './pages/ContentDetail'
 import ClassroomAnalytics from './pages/ClassroomAnalytics'
+import TestDrafts from './pages/TestDrafts'
+import EditTest from './pages/EditTest'
 import logo from './assets/logo_vq.png'
 import './App.css'
 
@@ -110,6 +112,8 @@ function App() {
             <Route path="/" element={isTeacher ? <Navigate to="/teacher" /> : <StudentDashboard user={currentUser} />} />
             <Route path="/teacher" element={<TeacherDashboard user={currentUser} />} />
             <Route path="/create-test" element={<CreateTest />} />
+            <Route path="/drafts" element={isTeacher ? <TestDrafts /> : <Navigate to="/" />} />
+            <Route path="/edit-test/:id" element={isTeacher ? <EditTest /> : <Navigate to="/" />} />
             <Route path="/test/:id" element={<TestTaking />} />
             <Route path="/results/:id" element={<TestResults />} />
             <Route path="/content/:id" element={<ContentDetail />} />
@@ -154,6 +158,14 @@ function Sidebar({ user, onLogout }) {
               Создать тест
             </Link>
           </li>
+          {isTeacher && (
+            <li>
+              <Link to="/drafts" className="nav-link">
+                <span className="icon">📂</span>
+                Черновики тестов
+              </Link>
+            </li>
+          )}
         </ul>
       </nav>
 

@@ -71,6 +71,9 @@ export default function TeacherDashboard({ user }) {
         <Link to="/create-test" className="btn-generate" style={{ textDecoration: 'none', width: 'auto', padding: '0.8rem 1.5rem', display: 'inline-flex', margin: 0 }}>
           ➕ Создать материал
         </Link>
+        <Link to="/drafts" className="btn-nav btn-back" style={{ textDecoration: 'none', display: 'inline-flex', alignItems: 'center' }}>
+          📂 Черновики тестов
+        </Link>
         <Link to="/classroom" className="btn-nav btn-back" style={{ textDecoration: 'none', display: 'inline-flex', alignItems: 'center' }}>
           🏫 Управление группами
         </Link>

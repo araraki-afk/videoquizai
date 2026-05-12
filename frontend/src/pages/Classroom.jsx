@@ -23,6 +23,10 @@ export default function Classroom({ user }) {
   // Classroom detail
   const [classroomDetail, setClassroomDetail] = useState(null)
   const [detailLoading, setDetailLoading] = useState(false)
+  // Student-facing test list for the current classroom (only populated when
+  // viewing /classroom/:id as a student).
+  const [studentContent, setStudentContent] = useState([])
+  const [studentContentLoading, setStudentContentLoading] = useState(false)
 
   // Assign content
   const [assigningClassroomId, setAssigningClassroomId] = useState(null)
@@ -30,6 +34,7 @@ export default function Classroom({ user }) {
   const [selectedContentId, setSelectedContentId] = useState('')
   const [assignDifficulty, setAssignDifficulty] = useState('medium')
   const [maxAttempts, setMaxAttempts] = useState(3)
+  const [assignDeadline, setAssignDeadline] = useState('')
 
   const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
   const token = localStorage.getItem('token')
@@ -78,6 +83,30 @@ export default function Classroom({ user }) {
     }
   }, [id])
 
+  // When a student opens a classroom, pull the actionable test list so we
+  // can render "Take test" buttons inline (issue #2). Skipped for teachers
+  // because they get the management/analytics surface already.
+  useEffect(() => {
+    if (!id || isTeacher) {
+      setStudentContent([])
+      return
+    }
+    const fetchStudentContent = async () => {
+      setStudentContentLoading(true)
+      try {
+        const res = await fetch(`${API_URL}/api/v1/classroom/${id}/content-for-student`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        })
+        if (res.ok) setStudentContent(await res.json())
+      } catch (err) {
+        // ignore; empty list will render the placeholder
+      } finally {
+        setStudentContentLoading(false)
+      }
+    }
+    fetchStudentContent()
+  }, [id, isTeacher])
+
   const handleCreate = async (e) => {
     e.preventDefault()
     if (!newName.trim()) return
@@ -122,17 +151,23 @@ export default function Classroom({ user }) {
     if (!selectedContentId) return
     setIsSubmitting(true)
     try {
+      const payload = {
+        content_id: Number(selectedContentId),
+        quiz_difficulty: assignDifficulty,
+        max_attempts: maxAttempts,
+      }
+      if (assignDeadline) payload.deadline = new Date(assignDeadline).toISOString()
       const res = await fetch(`${API_URL}/api/v1/classroom/${classroomId}/assign-content`, {
         method: 'POST', headers,
-        body: JSON.stringify({
-          content_id: Number(selectedContentId),
-          quiz_difficulty: assignDifficulty,
-          max_attempts: maxAttempts
-        })
+        body: JSON.stringify(payload)
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.detail || 'Ошибка')
-      setAssigningClassroomId(null); setSelectedContentId(''); setAssignDifficulty('medium'); setMaxAttempts(3)
+      setAssigningClassroomId(null)
+      setSelectedContentId('')
+      setAssignDifficulty('medium')
+      setMaxAttempts(3)
+      setAssignDeadline('')
       alert('Материал назначен!')
     } catch (err) {
       alert(err.message)
@@ -199,13 +234,15 @@ export default function Classroom({ user }) {
         {/* Action buttons */}
         <div style={{ display: 'flex', gap: '1rem', marginBottom: '2rem', flexWrap: 'wrap' }}>
           {isTeacher && (
-            <Link to={`/classroom/${classroom.id}/analytics`} className="btn-generate" style={{ textDecoration: 'none', width: 'auto', padding: '0.8rem 1.5rem', margin: 0 }}>
-              📊 Аналитика группы
-            </Link>
+            <>
+              <Link to={`/classroom/${classroom.id}/analytics`} className="btn-generate" style={{ textDecoration: 'none', width: 'auto', padding: '0.8rem 1.5rem', margin: 0 }}>
+                📊 Аналитика группы
+              </Link>
+              <button onClick={() => navigate('/classroom')} className="btn-nav btn-back">
+                ✏️ Управление
+              </button>
+            </>
           )}
-          <button onClick={() => navigate('/classroom')} className="btn-nav btn-back">
-            ✏️ Управление
-          </button>
         </div>
 
         {detailLoading ? (
@@ -246,24 +283,87 @@ export default function Classroom({ user }) {
               )}
             </div>
 
-            {/* Assigned Content */}
+            {/* Assigned Content / Takeable tests */}
             <div className="content-card" style={{ padding: '1.5rem' }}>
-              <h3 style={{ margin: '0 0 1rem', fontSize: '1.1rem' }}>📚 Назначенные материалы ({contents.length})</h3>
-              {contents.length > 0 ? (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
-                  {contents.map(c => (
-                    <div key={c.id} style={{ padding: '0.8rem', background: '#f8fafc', borderRadius: '8px', borderLeft: `3px solid ${c.content_status === 'done' ? '#10b981' : '#f59e0b'}` }}>
-                      <div style={{ fontWeight: '500', color: '#1e293b', fontSize: '0.9rem' }}>{c.content_title}</div>
-                      <div style={{ display: 'flex', gap: '0.8rem', marginTop: '0.4rem', fontSize: '0.8rem', color: '#64748b', flexWrap: 'wrap' }}>
-                        <span>{c.quiz_difficulty === 'easy' ? '🟢 Лёгкий' : c.quiz_difficulty === 'hard' ? '🔴 Сложный' : '🟡 Средний'}</span>
-                        {c.max_attempts && <span>🔄 {c.max_attempts} попыток</span>}
-                        <span>📅 {new Date(c.assigned_at).toLocaleDateString('ru-RU')}</span>
+              <h3 style={{ margin: '0 0 1rem', fontSize: '1.1rem' }}>
+                📚 {isTeacher ? `Назначенные материалы (${contents.length})` : `Тесты этой группы`}
+              </h3>
+
+              {/* Teacher view: read-only list (analytics has more detail) */}
+              {isTeacher && (
+                contents.length > 0 ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
+                    {contents.map(c => (
+                      <div key={c.id} style={{ padding: '0.8rem', background: '#f8fafc', borderRadius: '8px', borderLeft: `3px solid ${c.content_status === 'done' ? '#10b981' : '#f59e0b'}` }}>
+                        <div style={{ fontWeight: '500', color: '#1e293b', fontSize: '0.9rem' }}>{c.content_title}</div>
+                        <div style={{ display: 'flex', gap: '0.8rem', marginTop: '0.4rem', fontSize: '0.8rem', color: '#64748b', flexWrap: 'wrap' }}>
+                          <span>{c.quiz_difficulty === 'easy' ? '🟢 Лёгкий' : c.quiz_difficulty === 'hard' ? '🔴 Сложный' : '🟡 Средний'}</span>
+                          {c.max_attempts != null && <span>🔄 {c.max_attempts === 0 ? '∞' : c.max_attempts} попыток</span>}
+                          {c.deadline && <span>⏰ до {new Date(c.deadline).toLocaleString('ru-RU')}</span>}
+                          <span>📅 {new Date(c.assigned_at).toLocaleDateString('ru-RU')}</span>
+                        </div>
                       </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p style={{ color: '#94a3b8', fontSize: '0.9rem' }}>Материалы ещё не назначены</p>
+                    ))}
+                  </div>
+                ) : (
+                  <p style={{ color: '#94a3b8', fontSize: '0.9rem' }}>Материалы ещё не назначены</p>
+                )
+              )}
+
+              {/* Student view: clickable test cards (issue #2) */}
+              {!isTeacher && (
+                studentContentLoading ? (
+                  <p style={{ color: '#94a3b8', fontSize: '0.9rem' }}>Загрузка…</p>
+                ) : studentContent.length === 0 ? (
+                  <p style={{ color: '#94a3b8', fontSize: '0.9rem' }}>Преподаватель ещё не назначил материалов.</p>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.9rem' }}>
+                    {studentContent.map(item => {
+                      const quiz = item.quizzes && item.quizzes[0]
+                      const limitReached = quiz && quiz.max_attempts != null && quiz.used_attempts >= quiz.max_attempts
+                      const deadlinePassed = item.deadline && new Date(item.deadline) < new Date()
+                      return (
+                        <div key={item.content_id} style={{ padding: '1rem', background: '#f8fafc', borderRadius: '10px', borderLeft: '3px solid #4f46e5' }}>
+                          <div style={{ fontWeight: '600', color: '#1e293b', fontSize: '0.95rem', marginBottom: '0.3rem' }}>{item.title}</div>
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.8rem', fontSize: '0.8rem', color: '#64748b', marginBottom: '0.6rem' }}>
+                            <span>{item.quiz_difficulty === 'easy' ? '🟢 Лёгкий' : item.quiz_difficulty === 'hard' ? '🔴 Сложный' : '🟡 Средний'}</span>
+                            {quiz && <span>📋 {quiz.question_count} вопросов</span>}
+                            {quiz && quiz.max_attempts != null && (
+                              <span style={{ color: limitReached ? '#ef4444' : '#f59e0b' }}>
+                                🔄 {quiz.used_attempts}/{quiz.max_attempts}
+                              </span>
+                            )}
+                            {item.deadline && (
+                              <span style={{ color: deadlinePassed ? '#ef4444' : '#475569' }}>
+                                ⏰ до {new Date(item.deadline).toLocaleString('ru-RU')}
+                              </span>
+                            )}
+                          </div>
+                          <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                            <Link to={`/content/${item.content_id}`} className="btn-nav btn-back" style={{ textDecoration: 'none', padding: '0.5rem 0.9rem', fontSize: '0.85rem' }}>
+                              📖 Конспект
+                            </Link>
+                            {quiz ? (
+                              limitReached || deadlinePassed ? (
+                                <span style={{ padding: '0.5rem 0.9rem', background: '#f1f5f9', borderRadius: '8px', color: '#94a3b8', fontSize: '0.85rem', fontWeight: '500' }}>
+                                  {deadlinePassed ? '⌛ Срок истёк' : '🚫 Лимит исчерпан'}
+                                </span>
+                              ) : (
+                                <Link to={`/test/${quiz.id}`} className="btn-generate" style={{ width: 'auto', padding: '0.5rem 1rem', textDecoration: 'none', margin: 0, fontSize: '0.85rem' }}>
+                                  Пройти тест 🚀
+                                </Link>
+                              )
+                            ) : (
+                              <span style={{ padding: '0.5rem 0.9rem', background: '#fffbeb', borderRadius: '8px', color: '#f59e0b', fontSize: '0.85rem' }}>
+                                Тест готовится…
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )
               )}
             </div>
           </div>
@@ -339,98 +439,152 @@ export default function Classroom({ user }) {
       {/* Classrooms list */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '1.5rem' }}>
         {classrooms.length > 0 ? (
-          classrooms.map(cls => (
-            <div key={cls.id} className="content-card" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1rem' }}>
-                <h3 style={{ margin: 0, fontSize: '1.2rem', color: '#1e293b' }}>{cls.name}</h3>
-                <span style={{ background: '#e0e7ff', color: '#4338ca', padding: '0.2rem 0.6rem', borderRadius: '20px', fontSize: '0.8rem', fontWeight: 'bold', whiteSpace: 'nowrap' }}>
-                  {cls.member_count || 0} уч.
-                </span>
-              </div>
-
-              {cls.description && (
-                <p style={{ color: '#64748b', fontSize: '0.95rem', margin: '0 0 1rem 0' }}>{cls.description}</p>
-              )}
-
-              {isTeacher && (
-                <div style={{ color: '#94a3b8', fontSize: '0.85rem', marginBottom: '1rem' }}>
-                  Код: <strong style={{ color: '#475569', letterSpacing: '1px' }}>{cls.invite_code}</strong>
+          classrooms.map(cls => {
+            // Students get a fully-clickable card that drops them into the
+            // classroom detail view (where they see the test list).
+            // Teachers keep the multi-button management card.
+            const cardInner = (
+              <>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1rem' }}>
+                  <h3 style={{ margin: 0, fontSize: '1.2rem', color: '#1e293b' }}>{cls.name}</h3>
+                  <span style={{ background: '#e0e7ff', color: '#4338ca', padding: '0.2rem 0.6rem', borderRadius: '20px', fontSize: '0.8rem', fontWeight: 'bold', whiteSpace: 'nowrap' }}>
+                    {cls.member_count || 0} уч.
+                  </span>
                 </div>
-              )}
 
-              <div style={{ display: 'flex', gap: '0.5rem', marginTop: 'auto', flexWrap: 'wrap' }}>
+                {cls.description && (
+                  <p style={{ color: '#64748b', fontSize: '0.95rem', margin: '0 0 1rem 0' }}>{cls.description}</p>
+                )}
+
                 {isTeacher && (
-                  <>
-                    <button className="btn-nav btn-next" style={{ flex: 1, fontSize: '0.85rem', padding: '0.6rem' }} onClick={() => { setAssigningClassroomId(cls.id); fetchMyContent() }}>
+                  <div style={{ color: '#94a3b8', fontSize: '0.85rem', marginBottom: '1rem' }}>
+                    Код: <strong style={{ color: '#475569', letterSpacing: '1px' }}>{cls.invite_code}</strong>
+                  </div>
+                )}
+
+                {isTeacher ? (
+                  <div style={{ display: 'flex', gap: '0.5rem', marginTop: 'auto', flexWrap: 'wrap' }}>
+                    <button
+                      className="btn-nav btn-next"
+                      style={{ flex: 1, fontSize: '0.85rem', padding: '0.6rem' }}
+                      onClick={() => { setAssigningClassroomId(cls.id); fetchMyContent() }}
+                    >
                       📄 Назначить материал
                     </button>
-                    <Link to={`/classroom/${cls.id}/analytics`} className="btn-nav btn-back" style={{ flex: 1, fontSize: '0.85rem', padding: '0.6rem', textAlign: 'center', textDecoration: 'none' }}>
+                    <Link
+                      to={`/classroom/${cls.id}/analytics`}
+                      className="btn-nav btn-back"
+                      style={{ flex: 1, fontSize: '0.85rem', padding: '0.6rem', textAlign: 'center', textDecoration: 'none' }}
+                    >
                       📊 Аналитика
                     </Link>
-                  </>
+                  </div>
+                ) : (
+                  <div style={{ color: '#4f46e5', fontSize: '0.85rem', fontWeight: '500', marginTop: 'auto' }}>
+                    📚 Открыть тесты группы →
+                  </div>
                 )}
+              </>
+            )
+
+            if (!isTeacher) {
+              return (
+                <Link
+                  key={cls.id}
+                  to={`/classroom/${cls.id}`}
+                  className="content-card"
+                  style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', textDecoration: 'none', color: 'inherit', cursor: 'pointer' }}
+                >
+                  {cardInner}
+                </Link>
+              )
+            }
+            return (
+              <div key={cls.id} className="content-card" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column' }}>
+                {cardInner}
               </div>
-
-              {/* Assign content panel */}
-              {assigningClassroomId === cls.id && (
-                <div style={{ marginTop: '1rem', padding: '1rem', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
-                  <h4 style={{ margin: '0 0 0.8rem', fontSize: '0.95rem' }}>Назначить материал в «{cls.name}»</h4>
-
-                  {myContent.length === 0 ? (
-                    <p style={{ color: '#94a3b8', fontSize: '0.9rem' }}>Нет готовых материалов. <Link to="/create-test" style={{ color: '#4f46e5' }}>Создайте тест</Link></p>
-                  ) : (
-                    <>
-                      <select value={selectedContentId} onChange={(e) => setSelectedContentId(e.target.value)} style={{ width: '100%', padding: '0.6rem', borderRadius: '6px', border: '1px solid #cbd5e1', marginBottom: '0.8rem', fontSize: '0.9rem' }}>
-                        <option value="">Выберите материал...</option>
-                        {myContent.map(c => <option key={c.id} value={c.id}>{c.title}</option>)}
-                      </select>
-
-                      <div style={{ marginBottom: '0.8rem' }}>
-                        <label style={{ display: 'block', marginBottom: '0.4rem', fontSize: '0.85rem', fontWeight: '500', color: '#475569' }}>Сложность</label>
-                        <div style={{ display: 'flex', gap: '0.4rem' }}>
-                          {['easy', 'medium', 'hard'].map(d => (
-                            <button key={d} type="button"
-                              className={`difficulty-btn ${assignDifficulty === d ? 'active' : ''} difficulty-${d}`}
-                              onClick={() => setAssignDifficulty(d)}
-                              style={{ flex: 1, padding: '0.5rem', fontSize: '0.8rem' }}
-                            >
-                              {d === 'easy' ? '🟢' : d === 'medium' ? '🟡' : '🔴'} {d === 'easy' ? 'Лёгкий' : d === 'medium' ? 'Средний' : 'Сложный'}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-
-                      <div style={{ marginBottom: '0.8rem' }}>
-                        <label style={{ display: 'block', marginBottom: '0.4rem', fontSize: '0.85rem', fontWeight: '500', color: '#475569' }}>Количество попыток: <strong>{maxAttempts === 0 ? '∞' : maxAttempts}</strong></label>
-                        <input type="range" min="1" max="10" value={maxAttempts} onChange={(e) => setMaxAttempts(Number(e.target.value))}
-                          style={{ width: '100%', marginBottom: '0.4rem' }} />
-                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', color: '#94a3b8' }}>
-                          <span>1</span><span>5</span><span>10</span>
-                        </div>
-                      </div>
-
-                      <div style={{ display: 'flex', gap: '0.5rem' }}>
-                        <button onClick={() => handleAssign(cls.id)} disabled={!selectedContentId || isSubmitting}
-                          style={{ padding: '0.6rem 1rem', background: '#4f46e5', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600', fontSize: '0.85rem' }}>
-                          {isSubmitting ? '...' : 'Назначить'}
-                        </button>
-                        <button onClick={() => setAssigningClassroomId(null)}
-                          style={{ padding: '0.6rem 1rem', background: '#f1f5f9', color: '#64748b', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '0.85rem' }}>
-                          Отмена
-                        </button>
-                      </div>
-                    </>
-                  )}
-                </div>
-              )}
-            </div>
-          ))
+            )
+          })
         ) : (
           <div style={{ padding: '2rem', background: '#f8fafc', borderRadius: '12px', color: '#64748b', gridColumn: '1 / -1', textAlign: 'center' }}>
             {isTeacher ? 'Нет созданных классов. Создайте первый!' : 'Вы пока не состоите ни в одной группе. Присоединитесь по коду!'}
           </div>
         )}
       </div>
+
+      {/* Assign-content modal — rendered once at the page level so opening
+          it never reflows the classroom grid (fixes issue #4). */}
+      {assigningClassroomId !== null && (() => {
+        const cls = classrooms.find(c => c.id === assigningClassroomId)
+        if (!cls) return null
+        const close = () => {
+          setAssigningClassroomId(null)
+          setSelectedContentId('')
+          setAssignDifficulty('medium')
+          setMaxAttempts(3)
+          setAssignDeadline('')
+        }
+        return (
+          <div className="vq-modal-backdrop" onClick={close}>
+            <div className="vq-modal" onClick={(e) => e.stopPropagation()}>
+              <h3>Назначить материал</h3>
+              <p className="vq-modal-subtitle">Группа «{cls.name}»</p>
+
+              {myContent.length === 0 ? (
+                <p style={{ color: '#94a3b8', fontSize: '0.9rem' }}>
+                  Нет готовых материалов. <Link to="/create-test" style={{ color: '#4f46e5' }}>Создайте тест</Link>
+                </p>
+              ) : (
+                <>
+                  <label style={{ display: 'block', marginBottom: '0.4rem', fontSize: '0.85rem', fontWeight: '500', color: '#475569' }}>Материал</label>
+                  <select value={selectedContentId} onChange={(e) => setSelectedContentId(e.target.value)}
+                    style={{ width: '100%', padding: '0.7rem', borderRadius: '8px', border: '1px solid #cbd5e1', marginBottom: '1rem', fontSize: '0.95rem' }}>
+                    <option value="">Выберите материал…</option>
+                    {myContent.map(c => <option key={c.id} value={c.id}>{c.title}</option>)}
+                  </select>
+
+                  <label style={{ display: 'block', marginBottom: '0.4rem', fontSize: '0.85rem', fontWeight: '500', color: '#475569' }}>Сложность</label>
+                  <div style={{ display: 'flex', gap: '0.4rem', marginBottom: '1rem' }}>
+                    {['easy', 'medium', 'hard'].map(d => (
+                      <button key={d} type="button"
+                        className={`difficulty-btn ${assignDifficulty === d ? 'active' : ''} difficulty-${d}`}
+                        onClick={() => setAssignDifficulty(d)}
+                        style={{ flex: 1, padding: '0.5rem', fontSize: '0.85rem' }}
+                      >
+                        {d === 'easy' ? '🟢' : d === 'medium' ? '🟡' : '🔴'} {d === 'easy' ? 'Лёгкий' : d === 'medium' ? 'Средний' : 'Сложный'}
+                      </button>
+                    ))}
+                  </div>
+
+                  <label style={{ display: 'block', marginBottom: '0.4rem', fontSize: '0.85rem', fontWeight: '500', color: '#475569' }}>
+                    Количество попыток: <strong>{maxAttempts === 0 ? '∞' : maxAttempts}</strong>
+                  </label>
+                  <input type="range" min="1" max="10" value={maxAttempts} onChange={(e) => setMaxAttempts(Number(e.target.value))}
+                    style={{ width: '100%', marginBottom: '0.4rem' }} />
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', color: '#94a3b8', marginBottom: '1rem' }}>
+                    <span>1</span><span>5</span><span>10</span>
+                  </div>
+
+                  <label style={{ display: 'block', marginBottom: '0.4rem', fontSize: '0.85rem', fontWeight: '500', color: '#475569' }}>Дедлайн (необязательно)</label>
+                  <input type="datetime-local" value={assignDeadline} onChange={(e) => setAssignDeadline(e.target.value)}
+                    style={{ width: '100%', padding: '0.6rem', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '0.9rem' }} />
+
+                  <div className="vq-modal-actions">
+                    <button onClick={close}
+                      style={{ padding: '0.7rem 1.2rem', background: '#f1f5f9', color: '#64748b', border: 'none', borderRadius: '8px', cursor: 'pointer' }}>
+                      Отмена
+                    </button>
+                    <button onClick={() => handleAssign(cls.id)} disabled={!selectedContentId || isSubmitting}
+                      style={{ padding: '0.7rem 1.2rem', background: '#4f46e5', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '600' }}>
+                      {isSubmitting ? 'Назначаю…' : 'Назначить'}
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        )
+      })()}
     </div>
   )
 }

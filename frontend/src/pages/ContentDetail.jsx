@@ -2,6 +2,104 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import '../styles/pages.css';
 
+// Small dependency-free markdown renderer covering the patterns the
+// summary agent actually produces: # / ## / ### headings, **bold**, *italic*,
+// `code`, "- bullet" lists, "1. numbered" lists, and blank-line paragraph
+// breaks. Everything else falls through as plain text.
+function renderInline(text, keyPrefix = 'i') {
+  // Order matters: bold (**) before italic (*).
+  const tokens = [];
+  let remaining = text;
+  let idx = 0;
+  const patterns = [
+    { re: /\*\*([^*]+)\*\*/, tag: 'strong' },
+    { re: /__([^_]+)__/,     tag: 'strong' },
+    { re: /\*([^*]+)\*/,     tag: 'em' },
+    { re: /_([^_]+)_/,       tag: 'em' },
+    { re: /`([^`]+)`/,       tag: 'code' },
+  ];
+  while (remaining.length) {
+    let earliest = null;
+    for (const p of patterns) {
+      const m = p.re.exec(remaining);
+      if (m && (earliest === null || m.index < earliest.m.index)) {
+        earliest = { m, p };
+      }
+    }
+    if (!earliest) {
+      tokens.push(remaining);
+      break;
+    }
+    const { m, p } = earliest;
+    if (m.index > 0) tokens.push(remaining.slice(0, m.index));
+    const Tag = p.tag;
+    tokens.push(<Tag key={`${keyPrefix}-${idx++}`}>{m[1]}</Tag>);
+    remaining = remaining.slice(m.index + m[0].length);
+  }
+  return tokens;
+}
+
+function Markdown({ text }) {
+  if (!text) return null;
+  const lines = text.replace(/\r\n/g, '\n').split('\n');
+  const blocks = [];
+  let buf = [];
+  let listType = null; // 'ul' | 'ol' | null
+  let listBuf = [];
+
+  const flushParagraph = () => {
+    if (buf.length) {
+      blocks.push({ kind: 'p', text: buf.join(' ').trim() });
+      buf = [];
+    }
+  };
+  const flushList = () => {
+    if (listBuf.length) {
+      blocks.push({ kind: listType, items: listBuf });
+      listBuf = [];
+      listType = null;
+    }
+  };
+
+  for (const raw of lines) {
+    const line = raw.trimEnd();
+    const heading = line.match(/^(#{1,6})\s+(.*)$/);
+    const ul = line.match(/^\s*[-•*]\s+(.*)$/);
+    const ol = line.match(/^\s*\d+[.)]\s+(.*)$/);
+
+    if (heading) {
+      flushParagraph(); flushList();
+      blocks.push({ kind: `h${heading[1].length}`, text: heading[2] });
+    } else if (ul) {
+      flushParagraph();
+      if (listType !== 'ul') { flushList(); listType = 'ul'; }
+      listBuf.push(ul[1]);
+    } else if (ol) {
+      flushParagraph();
+      if (listType !== 'ol') { flushList(); listType = 'ol'; }
+      listBuf.push(ol[1]);
+    } else if (!line.trim()) {
+      flushParagraph(); flushList();
+    } else {
+      flushList();
+      buf.push(line);
+    }
+  }
+  flushParagraph(); flushList();
+
+  return (
+    <div className="md-summary">
+      {blocks.map((b, i) => {
+        if (b.kind === 'p')   return <p key={i}>{renderInline(b.text, `p${i}`)}</p>;
+        if (b.kind === 'ul')  return <ul key={i}>{b.items.map((it, j) => <li key={j}>{renderInline(it, `u${i}-${j}`)}</li>)}</ul>;
+        if (b.kind === 'ol')  return <ol key={i}>{b.items.map((it, j) => <li key={j}>{renderInline(it, `o${i}-${j}`)}</li>)}</ol>;
+        const HTag = b.kind; // h1..h6
+        return <HTag key={i}>{renderInline(b.text, `h${i}`)}</HTag>;
+      })}
+    </div>
+  );
+}
+
 export default function ContentDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -107,9 +205,7 @@ export default function ContentDetail() {
       {activeTab === 'summary' && (
         <div className="content-card">
           {summary ? (
-            <div style={{ lineHeight: '1.8', color: '#334155', fontSize: '1rem', whiteSpace: 'pre-wrap' }}>
-              {summary}
-            </div>
+            <Markdown text={summary} />
           ) : (
             <div style={{ textAlign: 'center', padding: '3rem', color: '#94a3b8' }}>
               <p style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>📄</p>
